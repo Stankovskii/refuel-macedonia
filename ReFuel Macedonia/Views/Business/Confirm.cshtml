@@ -1,0 +1,86 @@
+@model ContractDelivery
+@{
+    ViewData["Title"] = T["confirm.title"];
+    var contract = Model.SupplyContract;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Contract" asp-route-id="@(contract?.Id ?? 0)">
+        <partial name="_Icons" model="@("arrow-left")" /> @contract?.ContractNumber
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("truck")" /> @Model.Reference</span>
+            <h1>@T["confirm.title"]</h1>
+            <p class="muted small">@T["confirm.subtitle"]</p>
+        </div>
+    </div>
+
+    <form asp-action="Confirm" method="post" id="confirm-form" class="split">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@Model.Id" />
+        <input type="hidden" name="signatureData" id="signature-data" />
+
+        <div class="stack">
+            <div class="card">
+                <h2>@T["confirm.delivery"]</h2>
+                <table class="data" style="font-size:.9rem">
+                    <tbody>
+                    <tr><td>@T["proof.customer"]</td><td><strong>@contract?.BusinessAccount?.CompanyName</strong></td></tr>
+                    <tr><td>@T["business.asset"]</td><td>@Model.ContractAsset?.Name <span class="mono muted">@Model.ContractAsset?.Identifier</span></td></tr>
+                    <tr><td>@T["proof.scheduled"]</td><td>@Fmt.LocalTime(Model.ScheduledForUtc)</td></tr>
+                    <tr><td>@T["contract.planned"]</td><td>@Fmt.Litres(Model.PlannedLitres)</td></tr>
+                    <tr><td>@T["order.unitprice"]</td><td>@Fmt.N(Model.UnitPrice, 2) @T["common.perlitre"]</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="form-grid" style="margin-top:.9rem">
+                    <div>
+                        <label for="litres">@T["confirm.litres"] <span class="req">*</span></label>
+                        <input type="number" id="litres" name="litres" step="0.1" min="1" required value="@Fmt.Plain(Model.PlannedLitres, 0)" />
+                    </div>
+                    <div>
+                        <label for="driverName">@T["proof.driver"]</label>
+                        <input type="text" id="driverName" name="driverName" value="@(Model.DeliveryVehicle?.DriverName ?? "")" />
+                    </div>
+                    <div style="grid-column:1 / -1">
+                        <label for="receivedBy">@T["proof.receivedby"] <span class="req">*</span></label>
+                        <input type="text" id="receivedBy" name="receivedBy" required placeholder="@T["confirm.receivedby.placeholder"]" />
+                    </div>
+                    <div style="grid-column:1 / -1">
+                        <label for="remarks">@T["proof.remarks"]</label>
+                        <textarea id="remarks" name="remarks" maxlength="600" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h2>@T["confirm.sign"] <span class="req">*</span></h2>
+                <p class="muted small">@T["confirm.sign.hint"]</p>
+
+                <canvas id="sig-pad" class="sig-pad" data-required="@T["confirm.error.signature"]"></canvas>
+
+                <div class="flex" style="justify-content:space-between;margin-top:.6rem">
+                    <button type="button" class="btn btn-quiet btn-sm" id="sig-clear">@T["confirm.clear"]</button>
+                    <span class="tiny muted">@T["proof.signature.simple"]</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <p class="small muted" style="margin:0 0 .8rem">@T["confirm.legal"]</p>
+                <button class="btn btn-primary btn-block" type="submit">
+                    <partial name="_Icons" model="@("check")" /> @T["confirm.submit"]
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        ReFuel.initSignaturePad("sig-pad", "signature-data", "sig-clear", "confirm-form");
+    </script>
+}

@@ -1,0 +1,397 @@
+@model HomeVm
+@{
+    ViewData["Title"] = T["home.title"];
+    var mainFuelId = Model.Board.FirstOrDefault(b => b.Code == "EUROSUPER_95")?.FuelTypeId
+                     ?? Model.Board.FirstOrDefault()?.FuelTypeId ?? 0;
+}
+
+<div class="container">
+
+    <section class="hero">
+        <div class="hero-grid">
+            <div>
+                <span class="hero-badge"><partial name="_Icons" model="@("truck")" /> @T["home.hero.badge"]</span>
+                <h1>@T["home.hero.title"]</h1>
+                <p class="lead">@T["home.hero.subtitle"]</p>
+
+                <div class="hero-actions">
+                    <a class="btn btn-accent btn-lg" asp-controller="Orders" asp-action="Create">
+                        <partial name="_Icons" model="@("fuel")" /> @T["home.cta.order"]
+                    </a>
+                    <a class="btn btn-ghost btn-lg" asp-controller="Orders" asp-action="Create" asp-route-type="@OrderType.Emergency">
+                        <partial name="_Icons" model="@("alert")" /> @T["home.cta.sos"]
+                    </a>
+                    <a class="btn btn-ghost btn-lg" asp-controller="Home" asp-action="Business">
+                        <partial name="_Icons" model="@("building")" /> @T["home.cta.business"]
+                    </a>
+                </div>
+
+                <div class="hero-trust">
+                    <div><strong>@Fmt.Plain(Model.AverageDeliveryMinutes, 0) min</strong><span>@T["home.trust.avgtime"]</span></div>
+                    <div><strong>@Model.DeliveriesCompleted</strong><span>@T["home.trust.deliveries"]</span></div>
+                    <div><strong>@Model.Drivers.Count</strong><span>@T["home.trust.drivers"]</span></div>
+                    <div><strong>@Model.StationCount</strong><span>@T["home.stat.stations"]</span></div>
+                </div>
+            </div>
+
+            <div class="order-widget">
+                <h3><partial name="_Icons" model="@("fuel")" /> @T["home.widget.title"]</h3>
+                <p class="small muted" style="margin:0">@T["home.widget.subtitle"]</p>
+
+                <form asp-controller="Orders" asp-action="Create" method="get">
+                    <div class="fields">
+                        <div>
+                            <label>@T["station.fuel"]</label>
+                            <select name="fuelTypeId">
+                                @foreach (var fuel in Model.QuickOrder.Fuels)
+                                {
+                                    <option value="@fuel.Id" selected="@(fuel.Id == Model.QuickOrder.FuelTypeId)">@fuel.LocalizedName(T.Culture)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="row-2">
+                            <div>
+                                <label>@T["order.litres"]</label>
+                                <input type="number" name="litres" min="10" max="120" step="5" value="@Fmt.Plain(Model.QuickOrder.Litres, 0)" />
+                            </div>
+                            <div>
+                                <label>@T["order.type"]</label>
+                                <select name="type">
+                                    <option value="@((int)OrderType.Standard)">@T["order.type.standard"]</option>
+                                    <option value="@((int)OrderType.Emergency)">@T["order.type.emergency"]</option>
+                                    <option value="@((int)OrderType.Scheduled)">@T["order.type.scheduled"]</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="widget-summary">
+                        <div>
+                            <div class="tiny upper" style="margin:0">@T["home.widget.estimate"]</div>
+                            <strong>@Fmt.Money(Model.QuickOrder.EstimatedTotal, 0)</strong>
+                        </div>
+                        <div class="right">
+                            <div class="tiny upper" style="margin:0">@T["order.eta"]</div>
+                            <strong>~@Fmt.Plain(Model.QuickOrder.EtaMinutes, 0) min</strong>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-block btn-lg" type="submit" style="margin-top:.9rem">
+                        @T["home.widget.cta"] <partial name="_Icons" model="@("arrow-right")" />
+                    </button>
+                </form>
+
+                @if (Model.Drivers.Count > 0)
+                {
+                    <div class="driver-strip">
+                        <span class="stack-avatars">
+                            @foreach (var driver in Model.Drivers.Take(5))
+                            {
+                                <img src="@driver.DriverPhotoUrl" alt="@driver.DriverName" title="@driver.DriverName" />
+                            }
+                        </span>
+                        <span class="small muted">@T.Format("home.widget.drivers", Model.Drivers.Count)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (Model.ActiveTracking is not null && Model.ActiveOrder is not null)
+    {
+        var tracking = Model.ActiveTracking;
+        <section class="section">
+            <div class="card card-dark" style="padding:1.4rem">
+                <div class="spread" style="align-items:flex-start">
+                    <div>
+                        <span class="badge badge-onway"><span class="dot pulse" style="background:currentColor"></span> @T["home.active.title"]</span>
+                        <h2 style="margin-top:.5rem">@T[Fmt.StatusKey(Model.ActiveOrder.Status)]</h2>
+                        <p class="muted small mono">@Model.ActiveOrder.Reference · @Fmt.Litres(Model.ActiveOrder.Litres) @Model.ActiveOrder.FuelType?.ShortName</p>
+                    </div>
+                    <div class="right">
+                        <div class="eta-big">@Fmt.Plain(tracking.RemainingMinutes, 0)</div>
+                        <div class="eta-unit">@T["home.active.minutes"]</div>
+                    </div>
+                </div>
+
+                <div class="progress-rail"><span style="width:@tracking.ProgressPercent%"></span></div>
+
+                <div class="spread">
+                    @if (tracking.Driver is not null)
+                    {
+                        <div class="driver-card">
+                            <img class="driver-photo" src="@tracking.Driver.DriverPhotoUrl" alt="@tracking.Driver.DriverName" />
+                            <div class="driver-meta">
+                                <strong>@tracking.Driver.DriverName</strong>
+                                <span class="rating-stars">★ @Fmt.N(tracking.Driver.DriverRating, 1)</span>
+                                <span> · @tracking.Driver.TruckModel · @tracking.Driver.PlateNumber</span>
+                            </div>
+                        </div>
+                    }
+                    <a class="btn btn-accent" asp-controller="Orders" asp-action="Track" asp-route-id="@Model.ActiveOrder.Id">
+                        <partial name="_Icons" model="@("pin")" /> @T["order.track"]
+                    </a>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow"><partial name="_Icons" model="@("sparkle")" /> @T["home.how.eyebrow"]</span>
+                <h2>@T["home.how.title"]</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-4">
+            <div class="card card-hover">
+                <div class="feature-icon"><partial name="_Icons" model="@("fuel")" /></div>
+                <h3>1. @T["home.how.s1.title"]</h3>
+                <p class="small soft">@T["home.how.s1.body"]</p>
+            </div>
+            <div class="card card-hover">
+                <div class="feature-icon sky"><partial name="_Icons" model="@("pin")" /></div>
+                <h3>2. @T["home.how.s2.title"]</h3>
+                <p class="small soft">@T["home.how.s2.body"]</p>
+            </div>
+            <div class="card card-hover">
+                <div class="feature-icon violet"><partial name="_Icons" model="@("truck")" /></div>
+                <h3>3. @T["home.how.s3.title"]</h3>
+                <p class="small soft">@T["home.how.s3.body"]</p>
+            </div>
+            <div class="card card-hover">
+                <div class="feature-icon orange"><partial name="_Icons" model="@("check")" /></div>
+                <h3>4. @T["home.how.s4.title"]</h3>
+                <p class="small soft">@T["home.how.s4.body"]</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="grid grid-3">
+            @if (Model.Weather is not null)
+            {
+                <div class="card weather-card">
+                    <partial name="_Icons" model="@(Model.Weather.Icon)" />
+                    <div>
+                        <div class="weather-temp">@Fmt.Plain(Model.Weather.TemperatureC, 0)°C</div>
+                        <div class="small soft">@Model.Weather.City · @T[Model.Weather.DescriptionKey]</div>
+                        <div class="tiny muted">@T[Model.Weather.DrivingAdviceKey]</div>
+                    </div>
+                </div>
+            }
+
+            <div class="card">
+                <div class="spread">
+                    <h3><partial name="_Icons" model="@("road")" /> @T["home.roads.title"]</h3>
+                    <a class="small" asp-controller="Conditions" asp-action="Index">@T["common.all"]</a>
+                </div>
+                @if (Model.RoadAlerts.Count == 0)
+                {
+                    <p class="small soft" style="margin:0">@T["road.allclear"]</p>
+                }
+                else
+                {
+                    foreach (var alert in Model.RoadAlerts.Take(3))
+                    {
+                        <div class="station-row">
+                            <span class="badge @alert.StatusClass">@T[alert.StatusKey]</span>
+                            <div class="station-main">
+                                <strong>@alert.Road</strong>
+                                <span>@alert.Description</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="card">
+                <div class="spread">
+                    <h3><partial name="_Icons" model="@("building")" /> @T["home.b2b.title"]</h3>
+                    <span class="badge badge-violet">@Model.BusinessContracts @T["home.b2b.active"]</span>
+                </div>
+                <p class="small soft">@T["home.b2b.body"]</p>
+                <a class="btn btn-ghost btn-sm" asp-controller="Home" asp-action="Business">@T["home.b2b.cta"]</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow"><partial name="_Icons" model="@("chart")" /> @T["home.board.subtitle"]</span>
+                <h2>@T["home.board.title"]</h2>
+                <p class="muted small">@T["prices.updated"] @Fmt.LocalTime(Model.LastPriceUpdateUtc)</p>
+            </div>
+            <a class="btn btn-ghost btn-sm" asp-controller="Prices" asp-action="Index">@T["common.details"]</a>
+        </div>
+
+        <div class="price-board">
+            @foreach (var fuel in Model.Board)
+            {
+                <div class="price-tile" style="--tile-color:@fuel.Color">
+                    <div class="fuel-name">@fuel.Name</div>
+                    <div class="price-value">
+                        @Fmt.N(fuel.Price, 2)
+                        <span class="price-unit">@(fuel.Unit == "kg" ? T["unit.perkg"] : T["unit.perl"])</span>
+                    </div>
+                    <div class="@Fmt.TrendClass(fuel.Trend) trend">
+                        @Fmt.TrendArrow(fuel.Trend) @Fmt.Change(fuel.Change)
+                        <span class="muted tiny">(@Fmt.N(fuel.ChangePercent, 2) %)</span>
+                    </div>
+
+                    @if (fuel.StationCount > 0)
+                    {
+                        <div class="market-row">
+                            <span>@T["price.min"] <strong>@Fmt.N(fuel.MarketMin, 2)</strong></span>
+                            <span>@T["price.avg"] <strong>@Fmt.N(fuel.MarketAvg, 2)</strong></span>
+                        </div>
+                    }
+
+                    @if (fuel.PredictedNext > 0)
+                    {
+                        <div class="price-meta">
+                            @T["home.board.forecast"]: <strong>@Fmt.N(fuel.PredictedNext, 2)</strong>
+                            <span class="@Fmt.TrendClass(fuel.PredictedTrend)">@Fmt.TrendArrow(fuel.PredictedTrend)</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="price-meta">@T["price.effective"] @Fmt.LocalTime(fuel.EffectiveFrom, "dd.MM.yyyy")</div>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <div class="spread">
+                <h2>@T["home.chart.title"]</h2>
+                <a class="small" asp-controller="Prices" asp-action="Index">@T["common.more"]</a>
+            </div>
+            <p class="muted small">@T["home.chart.subtitle"]</p>
+            <div class="chart-box"><canvas id="chart-history"></canvas></div>
+        </div>
+
+        <div class="card">
+            <h2>@T["home.cheapest.title"]</h2>
+            <p class="muted small">@T["home.cheapest.subtitle"]</p>
+
+            @if (Model.Cheapest.Count == 0)
+            {
+                <p class="muted">@T["common.nodata"]</p>
+            }
+            else
+            {
+                foreach (var station in Model.Cheapest)
+                {
+                    <div class="station-row">
+                        <span class="station-dot" style="background:@station.BrandColor"></span>
+                        <div class="station-main">
+                            <strong><a asp-controller="Stations" asp-action="Details" asp-route-id="@station.Id">@station.Name</a></strong>
+                            <span>@station.City @(station.Brand is null ? "" : "· " + station.Brand)</span>
+                        </div>
+                        <div class="station-price">@(station.Price.HasValue ? Fmt.N(station.Price.Value, 2) : "-")</div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    @if (Model.Recommendation is not null && Model.Recommendation.Items.Count > 0)
+    {
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <span class="eyebrow"><partial name="_Icons" model="@("sparkle")" /> AI</span>
+                    <h2>@T["home.reco.title"]</h2>
+                    <p class="muted small">@T["ai.reco.explained"]</p>
+                </div>
+                <a class="btn btn-ghost btn-sm" asp-controller="Analytics" asp-action="Index">@T["nav.ai"]</a>
+            </div>
+
+            <div class="grid grid-4">
+                @foreach (var item in Model.Recommendation.Items)
+                {
+                    <div class="card card-tight card-hover reco-card">
+                        <strong><a asp-controller="Stations" asp-action="Details" asp-route-id="@item.Station.Id">@item.Station.Name</a></strong>
+                        <div class="muted small">@item.Station.City · @Fmt.Km(item.DistanceKm)</div>
+                        <div class="station-price">@Fmt.N(item.Price, 2)</div>
+                        <div class="score-bar"><span style="width:@Fmt.N(item.Score * 100, 0)%"></span></div>
+                        <div class="chips" style="margin-top:.45rem">
+                            @foreach (var reason in item.Reasons.Take(3))
+                            {
+                                <span class="reason">@T[reason]</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Model.Promotions.Count > 0)
+    {
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <span class="eyebrow"><partial name="_Icons" model="@("tag")" /> @T["home.promo.subtitle"]</span>
+                    <h2>@T["home.promo.title"]</h2>
+                </div>
+                <a class="btn btn-ghost btn-sm" asp-controller="Promotions" asp-action="Index">@T["common.all"]</a>
+            </div>
+
+            <div class="grid grid-4">
+                @foreach (var promo in Model.Promotions)
+                {
+                    var promoValue = promo.DiscountType switch
+                    {
+                        DiscountType.Percentage => "-" + Fmt.N(promo.Value, 0) + " %",
+                        DiscountType.PerLitre => "-" + Fmt.N(promo.Value, 0) + " " + T["unit.perl.short"],
+                        DiscountType.FreeDelivery => T["promo.freedelivery"],
+                        _ => "-" + Fmt.N(promo.Value, 0) + " " + T["unit.mkd"]
+                    };
+
+                    <div class="card card-tight card-hover promo-card" style="--promo-color:@promo.ColorHex">
+                        <div class="promo-value">@promoValue</div>
+                        <strong>@promo.Title(T.Culture)</strong>
+                        <p class="muted small">@promo.Description(T.Culture)</p>
+                        <span class="badge chip-brand mono">@promo.Code</span>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow"><partial name="_Icons" model="@("map")" /> OpenStreetMap</span>
+                <h2>@T["home.map.title"]</h2>
+                <p class="muted small">@T["home.map.subtitle"]</p>
+            </div>
+            <a class="btn btn-ghost btn-sm" asp-controller="Stations" asp-action="Map">@T["home.cta.map"]</a>
+        </div>
+        <div id="map" class="map-box map-md"></div>
+    </section>
+
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var series = @Html.Raw(Json.Serialize(Model.Series.Select(s => new {
+                label = s.Name,
+                color = s.Color,
+                points = s.Points.Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })
+            })));
+
+            ReFuel.lineChart("chart-history", series);
+
+            var map = ReFuel.createStationMap("map", { zoom: 8 });
+            ReFuel.loadStations(map, "/api/v1/stations/map?fuelTypeId=@mainFuelId");
+        })();
+    </script>
+}

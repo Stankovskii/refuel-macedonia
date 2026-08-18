@@ -1,0 +1,245 @@
+@model DispatchVm
+@{
+    ViewData["Title"] = T["dispatch.title"];
+
+    string PriorityClass(DeliveryPriority priority) => "prio prio-" + priority.ToString().ToLowerInvariant();
+    string PriorityLabel(DeliveryPriority priority) => T["priority." + priority.ToString().ToLowerInvariant()];
+}
+
+<div class="container">
+    @if (User.IsInRole("Administrator"))
+    {
+        <a class="back-link" asp-controller="Admin" asp-action="Index">
+            <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+        </a>
+    }
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("truck")" /> @T["dispatch.eyebrow"]</span>
+            <h1>@T["dispatch.title"]</h1>
+            <p class="muted small">@T["dispatch.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="grid grid-5 section">
+        <div class="card kpi"><strong class="prio-emergency">@Model.EmergencyCount</strong><span>@T["priority.emergency"]</span></div>
+        <div class="card kpi"><strong class="prio-scheduled">@Model.ScheduledCount</strong><span>@T["priority.scheduled"]</span></div>
+        <div class="card kpi"><strong class="prio-contractfleet">@Model.ContractCount</strong><span>@T["priority.contractfleet"]</span></div>
+        <div class="card kpi"><strong>@Model.StandardCount</strong><span>@T["priority.standard"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Litres(Model.TotalLitres)</strong><span>@T["dispatch.totallitres"]</span></div>
+    </div>
+
+    <div class="flex section">
+        <form asp-action="BuildRoutes" method="post">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-primary btn-sm" type="submit">
+                <partial name="_Icons" model="@("map")" /> @T["dispatch.buildroutes"]
+            </button>
+        </form>
+        @if (User.IsInRole("Administrator"))
+        {
+            <form asp-action="RunDetection" method="post">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-ghost btn-sm" type="submit">
+                    <partial name="_Icons" model="@("shield")" /> @T["dispatch.rundetection"]
+                </button>
+            </form>
+        }
+        <a class="btn btn-steel btn-sm" asp-action="Tankers">
+            <partial name="_Icons" model="@("tank")" /> @T["dispatch.tankers"]
+        </a>
+        @if (Model.OpenAnomalies > 0 && User.IsInRole("Administrator"))
+        {
+            <a class="btn btn-quiet btn-sm" asp-controller="Admin" asp-action="Anomalies">
+                <partial name="_Icons" model="@("bell")" /> @Model.OpenAnomalies @T["dispatch.openalerts"]
+            </a>
+        }
+    </div>
+
+    <div class="split">
+        <div class="stack">
+            <div class="card">
+                <h2>@T["dispatch.queue"]</h2>
+                <p class="muted small">@T["dispatch.queue.subtitle"]</p>
+
+                @if (Model.Queue.Count == 0)
+                {
+                    <p class="muted small">@T["dispatch.queue.empty"]</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data">
+                            <thead>
+                            <tr>
+                                <th>@T["dispatch.col.priority"]</th>
+                                <th>@T["orders.col.ref"]</th>
+                                <th>@T["dispatch.col.zone"]</th>
+                                <th>@T["station.fuel"]</th>
+                                <th class="num">@T["order.litres"]</th>
+                                <th class="num">@T["dispatch.col.waiting"]</th>
+                                <th>@T["dispatch.col.tanker"]</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var item in Model.Queue)
+                            {
+                                <tr>
+                                    <td><span class="@PriorityClass(item.Priority)">@PriorityLabel(item.Priority)</span></td>
+                                    <td>
+                                        <a asp-controller="Orders" asp-action="Track" asp-route-id="@item.Order.Id" class="mono">@item.Order.Reference</a>
+                                        <div class="tiny muted">@item.Order.DeliveryCity · @item.Order.DeliveryAddress</div>
+                                    </td>
+                                    <td>
+                                        <span class="zone-chip"><i style="background:@item.ZoneColor"></i>@(item.ZoneName ?? "—")</span>
+                                    </td>
+                                    <td class="small">@(item.Order.FuelType?.LocalizedName(T.Culture) ?? "—")</td>
+                                    <td class="num mono">@Fmt.N(item.Order.Litres, 0)</td>
+                                    <td class="num mono">@item.WaitingMinutes min</td>
+                                    <td>
+                                        <form asp-action="Assign" method="post" class="flex">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="orderId" value="@item.Order.Id" />
+                                            <select name="tankerId" style="min-width:150px">
+                                                @foreach (var tanker in Model.Tankers)
+                                                {
+                                                    <option value="@tanker.Tanker.Id" selected="@(tanker.Tanker.Id == item.Order.DeliveryVehicleId)">
+                                                        @tanker.Tanker.Code · @tanker.Tanker.DriverName
+                                                    </option>
+                                                }
+                                            </select>
+                                            <button class="btn btn-ghost btn-sm" type="submit">@T["dispatch.assign"]</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            @foreach (var route in Model.Routes.Where(r => r.Stops.Count > 0))
+            {
+                <div class="card">
+                    <div class="spread">
+                        <div>
+                            <span class="zone-chip"><i style="background:@route.ZoneColor"></i>@route.ZoneName</span>
+                            <h3 style="margin-top:.4rem">
+                                @(route.Tanker?.Code ?? "—") · @(route.Tanker?.DriverName ?? "—")
+                            </h3>
+                            <p class="tiny muted">@route.Stops.Count @T["dispatch.stops"] · @Fmt.Litres(route.TotalLitres)</p>
+                        </div>
+                        <div class="right">
+                            <div class="mono" style="font-size:1.2rem;font-weight:800">@Fmt.Km(route.TotalDistanceKm)</div>
+                            <div class="tiny trend-up">−@Fmt.Percent(route.ImprovementPercent) @T["dispatch.vsnaive"]</div>
+                            <div class="tiny muted">@Fmt.Minutes(route.EstimatedMinutes)</div>
+                        </div>
+                    </div>
+
+                    @foreach (var warning in route.Warnings)
+                    {
+                        <div class="alert alert-warn small" style="margin-top:.5rem">
+                            <partial name="_Icons" model="@("alert")" />
+                            <div>@T[warning]</div>
+                        </div>
+                    }
+
+                    <ol class="steps" style="margin-top:.6rem">
+                        @foreach (var stop in route.Stops)
+                        {
+                            <li>
+                                <span class="@PriorityClass(stop.Priority)">@PriorityLabel(stop.Priority)</span>
+                                <strong>@stop.Order.Reference</strong> ·
+                                @stop.Order.DeliveryCity, @stop.Order.DeliveryAddress ·
+                                <span class="mono">@Fmt.N(stop.Order.Litres, 0) л</span>
+                            </li>
+                        }
+                    </ol>
+                </div>
+            }
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h3>@T["dispatch.map"]</h3>
+                <div id="dispatch-map" class="map-md"></div>
+                <p class="tiny muted" style="margin-top:.5rem">@T["dispatch.map.note"]</p>
+            </div>
+
+            <div class="card">
+                <h3>@T["dispatch.zones"]</h3>
+                <ul class="assumption-list">
+                    @foreach (var zone in Model.Zones)
+                    {
+                        var count = Model.Queue.Count(q => q.ZoneId == zone.Id);
+                        <li>
+                            <span class="zone-chip"><i style="background:@zone.ColorHex"></i>@zone.Name</span>
+                            <span class="muted"> · @count @T["dispatch.orders"] · @Fmt.Km(zone.RadiusKm)</span>
+                        </li>
+                    }
+                </ul>
+                @if (User.IsInRole("Administrator"))
+                {
+                    <a class="btn btn-quiet btn-sm" asp-controller="Admin" asp-action="Pricing">@T["dispatch.editzones"]</a>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var el = document.getElementById('dispatch-map');
+            if (!el || typeof L === 'undefined') return;
+
+            var map = L.map(el).setView([41.6, 21.7], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            var zones = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Zones.Select(z => new {
+                                name = z.Name, lat = z.CenterLatitude, lng = z.CenterLongitude,
+                                radius = z.RadiusKm, color = z.ColorHex })));
+
+            zones.forEach(function (z) {
+                L.circle([z.lat, z.lng], {
+                    radius: z.radius * 1000,
+                    color: z.color, weight: 1, fillColor: z.color, fillOpacity: 0.06
+                }).bindTooltip(z.name).addTo(map);
+            });
+
+            var layer = L.layerGroup().addTo(map);
+
+            function refresh() {
+                fetch('@Url.Action("Live", "Dispatch")')
+                    .then(function (r) { return r.ok ? r.json() : []; })
+                    .then(function (rows) {
+                        layer.clearLayers();
+                        rows.forEach(function (t) {
+                            var marker = L.circleMarker([t.lat, t.lng], {
+                                radius: 8,
+                                color: '#0B0D12',
+                                weight: 2,
+                                fillColor: t.maintenance ? '#929AA8' : (t.pump ? '#12A150' : t.color),
+                                fillOpacity: 0.95
+                            });
+                            marker.bindPopup('<div class="popup-title">' + t.code + ' · ' + t.driver + '</div>' +
+                                '<div class="popup-price">' + Math.round(t.litres) + ' / ' + Math.round(t.capacity) + ' L</div>' +
+                                '<div>' + (t.zone || '') + ' · ' + Math.round(t.speed) + ' km/h</div>' +
+                                '<div>' + t.orders + ' open</div>');
+                            marker.addTo(layer);
+                        });
+                    })
+                    .catch(function () { });
+            }
+
+            refresh();
+            setInterval(refresh, 20000);
+        })();
+    </script>
+}

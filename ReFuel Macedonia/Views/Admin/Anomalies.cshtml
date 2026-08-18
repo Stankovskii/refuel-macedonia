@@ -1,0 +1,118 @@
+@model List<FuelAnomaly>
+@{
+    ViewData["Title"] = T["admin.anomalies.title"];
+    AnomalyStatus? status = ViewBag.Status;
+
+    string SeverityClass(AnomalySeverity severity) => severity switch
+    {
+        AnomalySeverity.Urgent => "badge-err",
+        AnomalySeverity.Attention => "badge-warn",
+        _ => "badge-info"
+    };
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("bell")" /> @T["admin.anomalies.eyebrow"]</span>
+            <h1>@T["admin.anomalies.title"]</h1>
+            <p class="muted small">@T["admin.anomalies.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="alert alert-info section">
+        <partial name="_Icons" model="@("shield")" />
+        <div>@T["admin.anomalies.disclaimer"]</div>
+    </div>
+
+    <div class="pill-tabs section">
+        <a class="@(status is null ? "active" : "")" asp-action="Anomalies">@T["common.all"]</a>
+        @foreach (var value in Enum.GetValues<AnomalyStatus>())
+        {
+            <a class="@(status == value ? "active" : "")" asp-action="Anomalies" asp-route-status="@value">
+                @T["anomaly.status." + value.ToString().ToLowerInvariant()]
+            </a>
+        }
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <div class="card center">
+            <h3>@T["admin.anomalies.empty"]</h3>
+            <p class="muted small">@T["admin.anomalies.empty.detail"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="stack">
+            @foreach (var anomaly in Model)
+            {
+                <div class="card">
+                    <div class="spread">
+                        <div>
+                            <span class="badge @SeverityClass(anomaly.Severity)">@T["anomaly.severity." + anomaly.Severity.ToString().ToLowerInvariant()]</span>
+                            <span class="badge badge-info">@T["anomaly.kind." + anomaly.Kind.ToString().ToLowerInvariant()]</span>
+                            <span class="badge">@T["anomaly.status." + anomaly.Status.ToString().ToLowerInvariant()]</span>
+                            <h3 style="margin-top:.4rem">@anomaly.Subject</h3>
+                            <p class="small muted">@anomaly.Detail</p>
+                        </div>
+                        <div class="right nowrap">
+                            <div class="tiny muted">@Fmt.LocalTime(anomaly.DetectedAtUtc)</div>
+                            <div class="mono" style="font-size:1.2rem;font-weight:800">
+                                @(anomaly.VarianceLitres > 0 ? "+" : "")@Fmt.N(anomaly.VarianceLitres, 1) л
+                            </div>
+                            <div class="tiny muted">@Fmt.Percent(anomaly.VariancePercent)</div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="grid grid-4">
+                        <div>
+                            <div class="upper">@T["admin.anomalies.expected"]</div>
+                            <div class="mono">@Fmt.N(anomaly.ExpectedLitres, 1) л</div>
+                        </div>
+                        <div>
+                            <div class="upper">@T["admin.anomalies.observed"]</div>
+                            <div class="mono">@Fmt.N(anomaly.ObservedLitres, 1) л</div>
+                        </div>
+                        <div>
+                            <div class="upper">@T["admin.anomalies.tanker"]</div>
+                            <div>@(anomaly.DeliveryVehicle?.Code ?? "—") · @(anomaly.DeliveryVehicle?.DriverName ?? "—")</div>
+                        </div>
+                        <div>
+                            <div class="upper">@T["nav.business"]</div>
+                            <div>@(anomaly.BusinessAccount?.CompanyName ?? "—")</div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(anomaly.Explanation))
+                    {
+                        <div class="alert alert-ok" style="margin-top:.7rem">
+                            <partial name="_Icons" model="@("check")" />
+                            <div>@anomaly.Explanation</div>
+                        </div>
+                    }
+
+                    <form asp-action="ReviewAnomaly" method="post" class="flex" style="margin-top:.8rem">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@anomaly.Id" />
+                        <input name="explanation" value="@anomaly.Explanation" placeholder="@T["admin.anomalies.explain"]" style="flex:1;min-width:240px" />
+                        <select name="status">
+                            @foreach (var value in Enum.GetValues<AnomalyStatus>())
+                            {
+                                <option value="@value" selected="@(value == anomaly.Status)">@T["anomaly.status." + value.ToString().ToLowerInvariant()]</option>
+                            }
+                        </select>
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                    </form>
+                </div>
+            }
+        </div>
+    }
+</div>

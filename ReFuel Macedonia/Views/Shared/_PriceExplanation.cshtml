@@ -1,0 +1,90 @@
+@model PriceBreakdown
+
+@if (Model is not null && Model.ShowExplanation && Model.Lines.Count > 0)
+{
+    <div class="price-why">
+        <div class="price-why-head">
+            <span class="upper"><partial name="_Icons" model="@("sparkle")" /> @T["pricing.why"]</span>
+            <span class="badge badge-info">@Model.TierName</span>
+        </div>
+
+        <ul class="why-list">
+            @foreach (var line in Model.Lines)
+            {
+                <li class="why-@line.Kind">
+                    <span>
+                        <strong>@line.Label</strong>
+                        @if (!string.IsNullOrEmpty(line.Detail))
+                        {
+                            <em>@line.Detail</em>
+                        }
+                    </span>
+                    <span class="mono">@Fmt.N(line.Amount, 2)</span>
+                </li>
+            }
+            <li class="why-total">
+                <span><strong>@T["order.total"]</strong></span>
+                <span class="mono">@Fmt.N(Model.Total, 2)</span>
+            </li>
+        </ul>
+
+        @if (Model.ShowMargin && Model.InternalLines.Count > 0)
+        {
+            <ul class="why-list why-internal">
+                @foreach (var line in Model.InternalLines)
+                {
+                    <li class="why-@line.Kind">
+                        <span>
+                            <strong>@line.Label</strong>
+                            @if (!string.IsNullOrEmpty(line.Detail))
+                            {
+                                <em>@line.Detail</em>
+                            }
+                        </span>
+                        <span class="mono">@Fmt.N(line.Amount, 2)</span>
+                    </li>
+                }
+            </ul>
+            <p class="tiny muted" style="margin:.2rem 0 0">@T["pricing.internal.notprofit"]</p>
+        }
+
+        <div class="why-foot">
+            @if (Model.PumpPricePerLitre > 0 && Model.CustomerDiscountPerLitre != 0)
+            {
+                <span class="price-vs">
+                    @T["pricing.why.yourprice"]:
+                    <s>@Fmt.N(Model.PumpPricePerLitre, 2)</s>
+                    <strong>@Fmt.N(Model.EffectivePricePerLitre, 2) @T["common.perlitre"]</strong>
+                    @if (Model.CustomerDiscountPerLitre > 0)
+                    {
+                        <span class="gain">−@Fmt.N(Model.CustomerDiscountPerLitre, 2)</span>
+                    }
+                </span>
+            }
+            else
+            {
+                <span>@T["pricing.why.effective"]: <strong>@Fmt.N(Model.EffectivePricePerLitre, 2) @T["common.perlitre"]</strong>
+                    @if (Model.PumpPricePerLitre > 0)
+                    {
+                        <em class="muted">· @T["pricing.why.samepump"]</em>
+                    }
+                </span>
+            }
+            @if (Model.MonthlyLitres > 0)
+            {
+                <span>@T["pricing.why.monthly"]: <strong>@Fmt.N(Model.MonthlyLitres, 0) л</strong></span>
+            }
+            @if (!string.IsNullOrEmpty(Model.ZoneName))
+            {
+                <span>@T["pricing.why.zone"]: <strong>@Model.ZoneName</strong></span>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.MarketingMessage))
+        {
+            <p class="why-message">@Model.MarketingMessage</p>
+        }
+
+        <p class="tiny muted" style="margin:.4rem 0 0">@T["pricing.why.note"]</p>
+    </div>
+}

@@ -1,0 +1,114 @@
+@model PromotionsPageVm
+@{
+    ViewData["Title"] = T["promotions.title"];
+    var dayLabels = new[] { T["day.sun"], T["day.mon"], T["day.tue"], T["day.wed"], T["day.thu"], T["day.fri"], T["day.sat"] };
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["promotions.title"]</h1>
+            <p class="muted small">@T["promotions.subtitle"]</p>
+        </div>
+        @if (Model.IsAuthenticated)
+        {
+            <div class="flex">
+                <span class="badge badge-info">@T[Fmt.TierKey(Model.Tier)]</span>
+                <span class="badge">@Model.Points @T["profile.points"]</span>
+            </div>
+        }
+    </div>
+
+    @if (!Model.IsAuthenticated)
+    {
+        <div class="alert alert-info">@T["promo.reason.login"] <a asp-controller="Account" asp-action="Login">@T["nav.login"]</a></div>
+    }
+
+    <div class="grid grid-3">
+        @foreach (var card in Model.Cards)
+        {
+            var promo = card.Promotion;
+            var value = promo.DiscountType switch
+            {
+                DiscountType.Percentage => "-" + Fmt.N(promo.Value, 0) + " %",
+                DiscountType.PerLitre => "-" + Fmt.N(promo.Value, 0) + " " + T["unit.perl.short"],
+                DiscountType.FreeDelivery => T["promo.freedelivery"],
+                _ => "-" + Fmt.N(promo.Value, 0) + " " + T["unit.mkd"]
+            };
+
+            <div class="card promo-card @(card.IsEligible ? "" : "promo-locked")" style="--promo-color:@promo.ColorHex">
+                <div class="spread">
+                    <div class="promo-value">@value</div>
+                    <span class="badge">@promo.Code</span>
+                </div>
+
+                <h3>@promo.Title(T.Culture)</h3>
+                <p class="small soft">@promo.Description(T.Culture)</p>
+
+                <div class="promo-days">
+                    @for (var d = 0; d < 7; d++)
+                    {
+                        <span class="promo-day @((promo.DayOfWeekMask & (1 << d)) != 0 ? "on" : "")">@dayLabels[d]</span>
+                    }
+                </div>
+
+                <ul class="small muted" style="list-style:none;padding:0;margin:.7rem 0 0">
+                    @if (promo.MinLitres > 0)
+                    {
+                        <li>@T["promo.minlitres"]: @Fmt.N(promo.MinLitres, 0) L</li>
+                    }
+                    @if (promo.MinOrderTotal > 0)
+                    {
+                        <li>@T["promo.mintotal"]: @Fmt.Money(promo.MinOrderTotal, 0)</li>
+                    }
+                    @if (promo.CooldownDays > 0)
+                    {
+                        <li>@T["promo.cooldown"]: @promo.CooldownDays @T["common.days"]</li>
+                    }
+                    @if (promo.MaxUsesPerUser > 0)
+                    {
+                        <li>@T["promo.maxuses"]: @promo.MaxUsesPerUser</li>
+                    }
+                    @if (promo.RequiredTier != LoyaltyTier.Basic)
+                    {
+                        <li>@T["promo.tier"]: @T[Fmt.TierKey(promo.RequiredTier)]</li>
+                    }
+                    @if (promo.EmergencyOnly)
+                    {
+                        <li>@T["promo.emergencyonly"]</li>
+                    }
+                    @if (!string.IsNullOrEmpty(promo.City))
+                    {
+                        <li>@T["promo.cityonly"]: @promo.City</li>
+                    }
+                    <li>@T["promo.validuntil"]: @Fmt.LocalTime(promo.EndsAtUtc, "dd.MM.yyyy")</li>
+                </ul>
+
+                <div class="divider"></div>
+
+                @if (card.IsEligible)
+                {
+                    <div class="flex">
+                        <span class="badge badge-ok">@T["promo.eligible"]</span>
+                        <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">@T["promo.use"]</a>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        <span class="badge badge-warn">@T[card.ReasonKey]</span>
+                        @if (card.AvailableFrom.HasValue)
+                        {
+                            <span class="small muted">· @T["promo.availablefrom"] @Fmt.LocalTime(card.AvailableFrom.Value, "dd.MM.yyyy")</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="card section">
+        <h2>@T["promo.rules.title"]</h2>
+        <p class="small soft">@T["promo.rules.body"]</p>
+    </div>
+</div>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144" role="img" aria-label="ReFuel driver">
+  <defs>
+    <linearGradient id="g8" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DC2626"/><stop offset="1" stop-color="#0B1220" stop-opacity=".55"/>
+    </linearGradient>
+    <clipPath id="c8"><circle cx="72" cy="72" r="72"/></clipPath>
+  </defs>
+  <g clip-path="url(#c8)">
+    <rect width="144" height="144" fill="url(#g8)"/>
+    <circle cx="72" cy="66" r="30" fill="#F8DCC4"/>
+    <path d="M60 88h24v10a12 12 0 0 1-24 0z" fill="#F8DCC4"/>
+    <path d="M40 62c0-19 14-30 32-30s32 11 32 30c0 6-2 11-4 14-1-14-10-20-28-20s-27 6-28 20c-2-3-4-8-4-14z" fill="#5A3520"/><path d="M36 62c2 16 4 26 6 34 3-10 2-22 2-28z" fill="#5A3520"/><path d="M108 62c-2 16-4 26-6 34-3-10-2-22-2-28z" fill="#5A3520"/>
+    <circle cx="62" cy="68" r="3" fill="#1F2937"/>
+    <circle cx="82" cy="68" r="3" fill="#1F2937"/>
+    <path d="M64 80c4 4 12 4 16 0" stroke="#1F2937" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M22 144c0-27 22-42 50-42s50 15 50 42z" fill="#0B3B36" opacity=".92"/>
+    <path d="M22 144c0-27 22-42 50-42s50 15 50 42z" fill="#DC2626" opacity=".8"/>
+    <path d="M60 102h24l-6 16h-12z" fill="#F8FAFC" opacity=".95"/>
+    <rect x="86" y="118" width="26" height="9" rx="4.5" fill="#F8FAFC" opacity=".9"/>
+    <text x="99" y="125.5" font-family="Segoe UI,Arial" font-size="7" font-weight="700" fill="#DC2626" text-anchor="middle">RF</text>
+  </g>
+</svg>

@@ -1,0 +1,210 @@
+@model ProfileVm
+@{
+    ViewData["Title"] = T["profile.title"];
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@Model.User.FullName</h1>
+            <p class="muted small">
+                @Model.User.Email ·
+                <span class="badge badge-info">@T[Fmt.TierKey(Model.User.Tier)]</span>
+                <span class="badge">@Model.User.LoyaltyPoints @T["profile.points"]</span>
+            </p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">@T["nav.order"]</a>
+    </div>
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><strong>@Model.OrderCount</strong><span>@T["profile.orders"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Litres(Model.TotalLitres)</strong><span>@T["orders.kpi.litres"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.TotalSpent, 0)</strong><span>@T["orders.kpi.spent"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.EstimatedSavings, 0)</strong><span>@T["profile.saved"]</span></div>
+    </div>
+
+    @if (Model.PointsToNextTier > 0)
+    {
+        <div class="alert alert-info">
+            @T["profile.nexttier"] <strong>@T[Fmt.TierKey(Model.NextTier)]</strong> — @Model.PointsToNextTier @T["profile.points"]
+        </div>
+    }
+
+    <div class="split">
+        <div class="stack">
+
+            <div class="card">
+                <h2>@T["profile.settings"]</h2>
+                <form asp-action="Update" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="form-grid">
+                        <div>
+                            <label>@T["account.fullname"]</label>
+                            <input type="text" name="fullName" value="@Model.User.FullName" />
+                        </div>
+                        <div>
+                            <label>@T["order.phone"]</label>
+                            <input type="text" name="phoneNumber" value="@Model.User.PhoneNumber" />
+                        </div>
+                        <div>
+                            <label>@T["station.city"]</label>
+                            <input type="text" name="city" value="@Model.User.City" />
+                        </div>
+                        <div>
+                            <label>@T["order.address"]</label>
+                            <input type="text" name="defaultAddress" value="@Model.User.DefaultAddress" />
+                        </div>
+                        <div>
+                            <label>@T["profile.homelat"]</label>
+                            <input type="number" step="0.000001" name="homeLatitude" value="@(Model.User.HomeLatitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+                        </div>
+                        <div>
+                            <label>@T["profile.homelng"]</label>
+                            <input type="number" step="0.000001" name="homeLongitude" value="@(Model.User.HomeLongitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+                        </div>
+                        <div>
+                            <label>@T["profile.preferredfuel"]</label>
+                            <select name="preferredFuelTypeId">
+                                <option value="">@T["common.none"]</option>
+                                @foreach (var fuel in Model.Fuels)
+                                {
+                                    <option value="@fuel.Id" selected="@(fuel.Id == Model.User.PreferredFuelTypeId)">@fuel.LocalizedName(T.Culture)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label>@T["account.language"]</label>
+                            <select name="preferredLanguage">
+                                @foreach (var code in SupportedCultures.All)
+                                {
+                                    <option value="@code" selected="@(code == Model.User.PreferredLanguage)">@SupportedCultures.NativeName(code)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label>@T["profile.maxdetour"] (km)</label>
+                            <input type="number" step="1" min="1" max="60" name="maxDetourKm" value="@Fmt.Plain(Model.User.MaxDetourKm, 0)" />
+                        </div>
+                        <div>
+                            <label>@T["profile.distanceweight"]</label>
+                            <input type="number" step="0.05" min="0" max="1" name="distanceWeight" value="@Fmt.Plain(Model.User.DistanceWeight, 2)" />
+                            <span class="small muted">@T["profile.distanceweight.hint"]</span>
+                        </div>
+                    </div>
+
+                    <div class="flex" style="margin-top:.8rem">
+                        <label class="check"><input type="checkbox" name="notifyPriceDrops" value="true" checked="@Model.User.NotifyPriceDrops" /> @T["profile.notify.prices"]</label>
+                        <label class="check"><input type="checkbox" name="notifyPromotions" value="true" checked="@Model.User.NotifyPromotions" /> @T["profile.notify.promos"]</label>
+                    </div>
+
+                    <button class="btn btn-primary" type="submit" style="margin-top:.8rem">@T["common.save"]</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>@T["profile.vehicles"]</h2>
+                @if (Model.Vehicles.Count == 0)
+                {
+                    <p class="muted small">@T["profile.novehicles"]</p>
+                }
+                @foreach (var vehicle in Model.Vehicles)
+                {
+                    <div class="station-row">
+                        <div class="station-main">
+                            <strong>@vehicle.DisplayName @(vehicle.IsDefault ? "★" : "")</strong>
+                            <span>@vehicle.FuelType?.LocalizedName(T.Culture) · @Fmt.N(vehicle.TankCapacityLitres, 0) L · @Fmt.N(vehicle.AvgConsumption, 1) L/100km</span>
+                        </div>
+                        <form asp-action="DeleteVehicle" asp-route-id="@vehicle.Id" method="post">
+                            @Html.AntiForgeryToken()
+                            <button class="link-btn" type="submit">@T["common.delete"]</button>
+                        </form>
+                    </div>
+                }
+
+                <div class="divider"></div>
+
+                <form asp-action="AddVehicle" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="form-grid">
+                        <div><label>@T["vehicle.make"]</label><input type="text" name="make" required /></div>
+                        <div><label>@T["vehicle.model"]</label><input type="text" name="model" required /></div>
+                        <div><label>@T["vehicle.plate"]</label><input type="text" name="plateNumber" /></div>
+                        <div><label>@T["vehicle.year"]</label><input type="number" name="year" min="1950" max="2030" /></div>
+                        <div>
+                            <label>@T["station.fuel"]</label>
+                            <select name="fuelTypeId">
+                                @foreach (var fuel in Model.Fuels)
+                                {
+                                    <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                                }
+                            </select>
+                        </div>
+                        <div><label>@T["vehicle.tank"]</label><input type="number" name="tankCapacityLitres" value="50" min="10" max="200" /></div>
+                        <div><label>@T["vehicle.consumption"]</label><input type="number" step="0.1" name="avgConsumption" value="7" min="1" max="40" /></div>
+                        <div style="align-self:end">
+                            <label class="check"><input type="checkbox" name="isDefault" value="true" /> @T["vehicle.default"]</label>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost" type="submit" style="margin-top:.7rem">@T["vehicle.add"]</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <div class="spread">
+                    <h3>@T["profile.notifications"]</h3>
+                    <form asp-action="MarkNotificationsRead" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="link-btn" type="submit">@T["profile.markread"]</button>
+                    </form>
+                </div>
+
+                @if (Model.Notifications.Count == 0)
+                {
+                    <p class="muted small">@T["common.nodata"]</p>
+                }
+                @foreach (var notification in Model.Notifications)
+                {
+                    var parts = notification.Body.Split('|');
+                    <div class="station-row">
+                        <span class="station-dot" style="background:@(notification.IsRead ? "#CBD5E1" : "#0F766E")"></span>
+                        <div class="station-main">
+                            <strong>@T[notification.Title]</strong>
+                            <span>@(parts.Length > 1 ? T.Format(parts[0], parts[1]) : T[parts[0]])</span>
+                        </div>
+                        <span class="small muted">@Fmt.LocalTime(notification.CreatedAtUtc, "dd.MM")</span>
+                    </div>
+                }
+            </div>
+
+            <div class="card">
+                <h3>@T["profile.favorites"]</h3>
+                @if (Model.Favorites.Count == 0)
+                {
+                    <p class="muted small">@T["profile.nofavorites"]</p>
+                }
+                @foreach (var favorite in Model.Favorites)
+                {
+                    <div class="station-row">
+                        <span class="station-dot" style="background:@favorite.BrandColor"></span>
+                        <div class="station-main">
+                            <strong><a asp-controller="Stations" asp-action="Details" asp-route-id="@favorite.Id">@favorite.Name</a></strong>
+                            <span>@favorite.City</span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="card">
+                <h3>@T["profile.links"]</h3>
+                <ul class="small" style="list-style:none;padding:0;margin:0">
+                    <li><a asp-controller="Orders" asp-action="Index">@T["nav.orders"]</a></li>
+                    <li><a asp-controller="Prices" asp-action="MyReports">@T["report.mine"]</a></li>
+                    <li><a asp-controller="Promotions" asp-action="Index">@T["nav.promotions"]</a></li>
+                    <li><a asp-controller="Analytics" asp-action="Index">@T["nav.ai"]</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

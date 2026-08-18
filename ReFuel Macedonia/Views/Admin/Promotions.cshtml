@@ -1,0 +1,142 @@
+@model List<Promotion>
+@{
+    ViewData["Title"] = T["admin.promos.title"];
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    var dayLabels = new[] { T["day.sun"], T["day.mon"], T["day.tue"], T["day.wed"], T["day.thu"], T["day.fri"], T["day.sat"] };
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.promos.title"]</h1>
+            <p class="muted small">@T["admin.promos.subtitle"]</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">@T["admin.tab.dashboard"]</a>
+
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.promos.new"]</h2>
+        <form asp-action="CreatePromotion" method="post">
+            @Html.AntiForgeryToken()
+            <div class="form-grid">
+                <div><label>@T["admin.promo.code"]</label><input type="text" name="Code" required maxlength="40" /></div>
+                <div><label>@T["admin.promo.title.mk"]</label><input type="text" name="TitleMk" required /></div>
+                <div><label>@T["admin.promo.title.en"]</label><input type="text" name="TitleEn" /></div>
+                <div><label>@T["admin.promo.title.sq"]</label><input type="text" name="TitleSq" /></div>
+
+                <div style="grid-column:span 2"><label>@T["admin.promo.desc.mk"]</label><input type="text" name="DescriptionMk" /></div>
+                <div><label>@T["admin.promo.desc.en"]</label><input type="text" name="DescriptionEn" /></div>
+                <div><label>@T["admin.promo.desc.sq"]</label><input type="text" name="DescriptionSq" /></div>
+
+                <div>
+                    <label>@T["admin.promo.type"]</label>
+                    <select name="DiscountType">
+                        <option value="@((int)DiscountType.Percentage)">@T["admin.promo.type.percent"]</option>
+                        <option value="@((int)DiscountType.FixedAmount)">@T["admin.promo.type.fixed"]</option>
+                        <option value="@((int)DiscountType.PerLitre)">@T["admin.promo.type.perlitre"]</option>
+                        <option value="@((int)DiscountType.FreeDelivery)">@T["admin.promo.type.delivery"]</option>
+                    </select>
+                </div>
+                <div><label>@T["admin.promo.value"]</label><input type="number" step="0.01" name="Value" value="10" /></div>
+                <div><label>@T["admin.promo.maxdiscount"]</label><input type="number" step="1" name="MaxDiscountAmount" value="0" /></div>
+                <div><label>@T["promo.minlitres"]</label><input type="number" step="1" name="MinLitres" value="0" /></div>
+                <div><label>@T["promo.mintotal"]</label><input type="number" step="1" name="MinOrderTotal" value="0" /></div>
+
+                <div><label>@T["admin.promo.starts"]</label><input type="date" name="StartsAtUtc" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" /></div>
+                <div><label>@T["admin.promo.ends"]</label><input type="date" name="EndsAtUtc" value="@DateTime.UtcNow.AddMonths(3).ToString("yyyy-MM-dd")" /></div>
+
+                <div><label>@T["promo.cooldown"]</label><input type="number" step="1" name="CooldownDays" value="7" /></div>
+                <div><label>@T["promo.maxuses"]</label><input type="number" step="1" name="MaxUsesPerUser" value="0" /></div>
+                <div><label>@T["admin.promo.maxtotal"]</label><input type="number" step="1" name="MaxTotalUses" value="0" /></div>
+                <div><label>@T["admin.promo.daymask"]</label><input type="number" step="1" min="1" max="127" name="DayOfWeekMask" value="127" /></div>
+
+                <div>
+                    <label>@T["promo.tier"]</label>
+                    <select name="RequiredTier">
+                        @foreach (var tier in Enum.GetValues<LoyaltyTier>())
+                        {
+                            <option value="@((int)tier)">@T[Fmt.TierKey(tier)]</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["station.fuel"]</label>
+                    <select name="FuelTypeId">
+                        <option value="">@T["common.all"]</option>
+                        @foreach (var fuel in fuels)
+                        {
+                            <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div><label>@T["station.city"]</label><input type="text" name="City" /></div>
+                <div><label>@T["admin.promo.color"]</label><input type="text" name="ColorHex" value="#0F766E" /></div>
+
+                <div style="align-self:end">
+                    <label class="check"><input type="checkbox" name="NewCustomersOnly" value="true" /> @T["admin.promo.newonly"]</label>
+                    <label class="check"><input type="checkbox" name="EmergencyOnly" value="true" /> @T["promo.emergencyonly"]</label>
+                    <label class="check"><input type="checkbox" name="IsActive" value="true" checked /> @T["admin.promo.active"]</label>
+                </div>
+            </div>
+
+            <p class="small muted" style="margin-top:.6rem">@T["admin.promo.maskhint"]</p>
+            <button class="btn btn-primary" type="submit">@T["admin.promos.create"]</button>
+        </form>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["admin.promo.code"]</th>
+                <th>@T["admin.promo.title.mk"]</th>
+                <th>@T["admin.promo.type"]</th>
+                <th class="num">@T["admin.promo.value"]</th>
+                <th>@T["admin.promo.days"]</th>
+                <th class="num">@T["promo.cooldown"]</th>
+                <th class="num">@T["admin.promo.used"]</th>
+                <th>@T["common.status"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var promo in Model)
+            {
+                <tr>
+                    <td class="mono"><span class="badge" style="background:@promo.ColorHex;color:#fff">@promo.Code</span></td>
+                    <td>@promo.TitleMk</td>
+                    <td class="small">@promo.DiscountType</td>
+                    <td class="num">@Fmt.N(promo.Value, 2)</td>
+                    <td>
+                        <div class="promo-days">
+                            @for (var d = 0; d < 7; d++)
+                            {
+                                <span class="promo-day @((promo.DayOfWeekMask & (1 << d)) != 0 ? "on" : "")">@dayLabels[d]</span>
+                            }
+                        </div>
+                    </td>
+                    <td class="num">@promo.CooldownDays</td>
+                    <td class="num">@promo.TimesUsed</td>
+                    <td>
+                        <span class="badge @(promo.IsLive ? "badge-ok" : "badge-warn")">
+                            @(promo.IsLive ? T["admin.promo.live"] : T["admin.promo.off"])
+                        </span>
+                    </td>
+                    <td class="num">
+                        <form asp-action="TogglePromotion" asp-route-id="@promo.Id" method="post">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-ghost btn-sm" type="submit">@(promo.IsActive ? T["admin.disable"] : T["admin.enable"])</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

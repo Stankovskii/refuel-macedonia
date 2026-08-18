@@ -1,0 +1,119 @@
+@model List<RoutePlanVm>
+@{
+    ViewData["Title"] = T["admin.routes.title"];
+    var fleet = ViewBag.Fleet as List<DeliveryVehicle> ?? new List<DeliveryVehicle>();
+    var totalSaved = Model.Sum(p => p.NaiveDistanceKm - p.TotalDistanceKm);
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.routes.title"]</h1>
+            <p class="muted small">@T["admin.routes.subtitle"]</p>
+        </div>
+        <form asp-action="SaveRoutes" method="post">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-primary btn-sm" type="submit">@T["admin.routes.save"]</button>
+        </form>
+
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><strong>@Model.Count</strong><span>@T["admin.routes.plans"]</span></div>
+        <div class="card kpi"><strong>@Model.Sum(p => p.Stops.Count)</strong><span>@T["admin.routes.stops"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Km(Model.Sum(p => p.TotalDistanceKm))</strong><span>@T["admin.routes.distance"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Km(totalSaved)</strong><span>@T["admin.routes.saved"]</span></div>
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <div class="alert alert-info">@T["admin.routes.none"]</div>
+    }
+
+    <div id="map-routes" class="map-box section"></div>
+
+    @foreach (var plan in Model)
+    {
+        <div class="card section">
+            <div class="spread">
+                <div>
+                    <h2>@plan.VehicleCode · @plan.Driver</h2>
+                    <p class="muted small">@plan.Algorithm</p>
+                </div>
+                <div class="flex small soft">
+                    <span>@T["admin.routes.optimised"]: <strong>@Fmt.Km(plan.TotalDistanceKm)</strong></span>
+                    <span>@T["admin.routes.naive"]: <strong>@Fmt.Km(plan.NaiveDistanceKm)</strong></span>
+                    <span class="trend-down">@T["admin.routes.improvement"]: <strong>@Fmt.N(plan.ImprovementPercent, 1) %</strong></span>
+                    <span>@T["admin.routes.duration"]: <strong>@Fmt.Minutes(plan.DurationMinutes)</strong></span>
+                    <span>@Fmt.Litres(plan.TotalLitres)</span>
+                </div>
+            </div>
+
+            <div class="table-wrap" style="border:0;margin-top:.7rem">
+                <table class="data">
+                    <thead><tr><th>#</th><th>@T["orders.col.ref"]</th><th>@T["order.address"]</th><th class="num">@T["order.litres"]</th><th class="num">@T["admin.routes.leg"]</th><th class="num">@T["admin.routes.cumulative"]</th><th>@T["order.eta"]</th></tr></thead>
+                    <tbody>
+                    @foreach (var stop in plan.Stops)
+                    {
+                        <tr>
+                            <td>@stop.Sequence</td>
+                            <td class="mono small">@stop.Reference</td>
+                            <td class="small">@stop.Label</td>
+                            <td class="num">@Fmt.Litres(stop.Litres)</td>
+                            <td class="num">@Fmt.Km(stop.LegDistanceKm)</td>
+                            <td class="num muted">@Fmt.Km(stop.CumulativeKm)</td>
+                            <td class="small">@Fmt.LocalTime(stop.Eta, "HH:mm")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var plans = @Html.Raw(Json.Serialize(Model.Select(p => new {
+                code = p.VehicleCode,
+                stops = p.Stops.Select(s => new { s.Sequence, s.Lat, s.Lng, s.Reference })
+            })));
+
+            var depots = @Html.Raw(Json.Serialize(fleet.Select(f => new { f.Code, f.BaseLatitude, f.BaseLongitude })));
+
+            var map = L.map("map-routes").setView([ReFuel.country.lat, ReFuel.country.lng], 8);
+            ReFuel.tileLayer().addTo(map);
+
+            var palette = ["#0F766E", "#2563EB", "#F59E0B", "#DC2626", "#7C3AED", "#059669"];
+            var bounds = [];
+
+            depots.forEach(function (depot) {
+                L.circleMarker([depot.baseLatitude, depot.baseLongitude], { radius: 8, color: "#111827", fillColor: "#111827", fillOpacity: .9 })
+                    .addTo(map).bindPopup(depot.code);
+                bounds.push([depot.baseLatitude, depot.baseLongitude]);
+            });
+
+            plans.forEach(function (plan, index) {
+                var color = palette[index % palette.length];
+                var line = [];
+
+                plan.stops.forEach(function (stop) {
+                    line.push([stop.lat, stop.lng]);
+                    bounds.push([stop.lat, stop.lng]);
+                    L.circleMarker([stop.lat, stop.lng], { radius: 6, color: color, fillColor: color, fillOpacity: .85 })
+                        .addTo(map).bindPopup(plan.code + " #" + stop.sequence + "<br>" + stop.reference);
+                });
+
+                if (line.length > 1) L.polyline(line, { color: color, weight: 3, opacity: .75 }).addTo(map);
+            });
+
+            if (bounds.length) map.fitBounds(L.latLngBounds(bounds).pad(0.2));
+        })();
+    </script>
+}

@@ -1,0 +1,291 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@{
+    var culture = T.Culture;
+    var user = SignInManager.IsSignedIn(User) ? await UserManager.GetUserAsync(User) : null;
+    var isAdmin = User.IsInRole("Administrator");
+    var isDriver = User.IsInRole("Driver");
+    var currentUrl = Context.Request.Path + Context.Request.QueryString;
+    var controller = (ViewContext.RouteData.Values["controller"] as string) ?? "";
+    var action = (ViewContext.RouteData.Values["action"] as string) ?? "";
+
+    bool Is(string name, params string[] actions)
+    {
+        if (!string.Equals(controller, name, StringComparison.OrdinalIgnoreCase)) return false;
+        return actions.Length == 0 || actions.Any(a => string.Equals(a, action, StringComparison.OrdinalIgnoreCase));
+    }
+
+    string On(string name, params string[] actions) => Is(name, actions) ? "on" : "";
+
+    string OnAny(params bool[] flags) => flags.Any(f => f) ? "on" : "";
+
+    var inAdminShell = (isAdmin || isDriver) && (Is("Admin") || Is("Dispatch"));
+
+    var initials = string.IsNullOrWhiteSpace(user?.FullName)
+        ? "RF"
+        : string.Concat(user!.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                      .Take(2).Select(p => p[0])).ToUpperInvariant();
+}
+<!DOCTYPE html>
+<html lang="@culture">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B0D12" />
+    <title>@(ViewData["Title"] ?? T["app.name"]) · ReFuel</title>
+    <meta name="description" content="@T["app.tagline"]" />
+
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/img/favicon-32.png" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="16x16" href="~/img/favicon-16.png" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="192x192" href="~/img/favicon-192.png" asp-append-version="true" />
+    <link rel="shortcut icon" href="~/favicon.ico" asp-append-version="true" />
+    <link rel="apple-touch-icon" href="~/img/apple-touch-icon.png" asp-append-version="true" />
+    <link rel="manifest" href="~/manifest.webmanifest" asp-append-version="true" />
+    <meta name="application-name" content="ReFuel" />
+    <meta name="apple-mobile-web-app-title" content="ReFuel" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+<header class="site-header">
+    <div class="container header-inner">
+        <a class="brand" asp-controller="Home" asp-action="Index" title="ReFuel — Fuel. Where you are.">
+            <partial name="_BrandMark" model="@("")" />
+            <span class="brand-text">
+                <strong>Re<em>Fuel</em></strong>
+                <small>Fuel. Where you are.</small>
+            </span>
+        </a>
+
+        <button type="button" class="nav-toggle" aria-label="@T["nav.menu"]" aria-expanded="false" data-nav-toggle>
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav class="main-nav" id="main-nav">
+            <a class="@On("Orders")" asp-controller="Orders" asp-action="Create">
+                <partial name="_Icons" model="@("truck")" /> @T["nav.delivery"]
+            </a>
+
+            <div class="nav-group @OnAny(Is("Prices"), Is("Stations"))">
+                <button type="button" class="nav-trigger" aria-expanded="false" aria-haspopup="true">
+                    @T["nav.prices"]
+                    <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                <div class="nav-menu">
+                    <a class="@On("Prices", "Index", "History")" asp-controller="Prices" asp-action="Index">
+                        <partial name="_Icons" model="@("chart")" />
+                        <span><strong>@T["nav.prices"]</strong><em>@T["nav.prices.hint"]</em></span>
+                    </a>
+                    <a class="@On("Stations", "Index", "Details")" asp-controller="Stations" asp-action="Index">
+                        <partial name="_Icons" model="@("pin")" />
+                        <span><strong>@T["nav.stations"]</strong><em>@T["nav.stations.hint"]</em></span>
+                    </a>
+                    <a class="@On("Stations", "Map")" asp-controller="Stations" asp-action="Map">
+                        <partial name="_Icons" model="@("map")" />
+                        <span><strong>@T["nav.map"]</strong><em>@T["nav.map.hint"]</em></span>
+                    </a>
+                    <a class="@On("Prices", "Report", "MyReports")" asp-controller="Prices" asp-action="Report">
+                        <partial name="_Icons" model="@("bell")" />
+                        <span><strong>@T["nav.report"]</strong><em>@T["nav.report.hint"]</em></span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-group @OnAny(Is("Analytics"), Is("Conditions"), Is("Promotions"))">
+                <button type="button" class="nav-trigger" aria-expanded="false" aria-haspopup="true">
+                    @T["nav.insights"]
+                    <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                <div class="nav-menu">
+                    <a class="@On("Analytics", "Index", "Forecast")" asp-controller="Analytics" asp-action="Index">
+                        <partial name="_Icons" model="@("sparkle")" />
+                        <span><strong>@T["nav.ai"]</strong><em>@T["nav.ai.hint"]</em></span>
+                    </a>
+                    <a class="@On("Conditions")" asp-controller="Conditions" asp-action="Index">
+                        <partial name="_Icons" model="@("cloud-sun")" />
+                        <span><strong>@T["nav.conditions"]</strong><em>@T["nav.conditions.hint"]</em></span>
+                    </a>
+                    <a class="@On("Promotions")" asp-controller="Promotions" asp-action="Index">
+                        <partial name="_Icons" model="@("gift")" />
+                        <span><strong>@T["nav.promotions"]</strong><em>@T["nav.promotions.hint"]</em></span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-group @OnAny(Is("Business"), Is("Home", "Business"))">
+                <button type="button" class="nav-trigger" aria-expanded="false" aria-haspopup="true">
+                    @T["nav.business"]
+                    <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                <div class="nav-menu">
+                    <a class="@On("Home", "Business")" asp-controller="Home" asp-action="Business">
+                        <partial name="_Icons" model="@("building")" />
+                        <span><strong>@T["nav.forcompanies"]</strong><em>@T["nav.forcompanies.hint"]</em></span>
+                    </a>
+                    <a class="@On("Business", "Index", "Contract", "Invoice", "Proof")" asp-controller="Business" asp-action="Index">
+                        <partial name="_Icons" model="@("invoice")" />
+                        <span><strong>@T["business.tab.overview"]</strong><em>@T["nav.contracts.hint"]</em></span>
+                    </a>
+                    <a class="@On("Business", "Fleet", "Sites", "Schedules")" asp-controller="Business" asp-action="Fleet">
+                        <partial name="_Icons" model="@("truck")" />
+                        <span><strong>@T["business.tab.fleet"]</strong><em>@T["nav.fleet.hint"]</em></span>
+                    </a>
+                    <a class="@On("Business", "Savings")" asp-controller="Business" asp-action="Savings">
+                        <partial name="_Icons" model="@("wallet")" />
+                        <span><strong>@T["business.tab.savings"]</strong><em>@T["nav.savings.hint"]</em></span>
+                    </a>
+                </div>
+            </div>
+
+            @if (isAdmin || isDriver)
+            {
+                <a class="nav-admin @On("Dispatch")" asp-controller="Dispatch" asp-action="Index">@T["admin.tab.dispatch"]</a>
+            }
+            @if (isAdmin)
+            {
+                <a class="nav-admin @On("Admin")" asp-controller="Admin" asp-action="Index">@T["nav.admin"]</a>
+            }
+        </nav>
+
+        <div class="header-actions">
+            <button type="button" id="install-app" class="btn btn-steel btn-sm" hidden title="@T["app.install"]">
+                <partial name="_Icons" model="@("download")" /> <span class="install-label">@T["app.install"]</span>
+            </button>
+
+            <form asp-controller="Home" asp-action="SetLanguage" method="post" class="lang-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@currentUrl" />
+                @foreach (var code in SupportedCultures.All)
+                {
+                    <button type="submit" name="culture" value="@code"
+                            class="lang-btn @(code == culture ? "active" : "")"
+                            title="@SupportedCultures.NativeName(code)">@SupportedCultures.ShortName(code)</button>
+                }
+            </form>
+
+            @if (SignInManager.IsSignedIn(User))
+            {
+                <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">
+                    <partial name="_Icons" model="@("fuel")" /> @T["nav.order"]
+                </a>
+                <div class="user-chip">
+                    <a asp-controller="Profile" asp-action="Index" title="@user?.FullName">
+                        <span class="avatar-mini">@initials</span>
+                    </a>
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="link-btn" title="@T["nav.logout"]">
+                            <partial name="_Icons" model="@("logout")" />
+                        </button>
+                    </form>
+                </div>
+            }
+            else
+            {
+                <a class="btn btn-quiet btn-sm" asp-controller="Account" asp-action="Login">@T["nav.login"]</a>
+                <a class="btn btn-steel btn-sm" asp-controller="Account" asp-action="Register">
+                    <partial name="_Icons" model="@("user")" /> @T["nav.register"]
+                </a>
+                <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">
+                    <partial name="_Icons" model="@("truck")" /> @T["nav.order"]
+                </a>
+            }
+        </div>
+    </div>
+</header>
+
+@if (TempData["Message"] is string message && !string.IsNullOrEmpty(message))
+{
+    <div class="container">
+        <div class="alert alert-info">
+            <partial name="_Icons" model="@("check")" />
+            <div>
+                @T[message]
+                @if (TempData["Detail"] is string detail && !string.IsNullOrEmpty(detail))
+                {
+                    <span class="muted">— @detail</span>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<main class="site-main">
+    @if (inAdminShell)
+    {
+        <div class="container admin-shell">
+            <aside class="admin-side">
+                <partial name="_AdminNav" />
+            </aside>
+            <div class="admin-main">
+                @RenderBody()
+            </div>
+        </div>
+    }
+    else
+    {
+        @RenderBody()
+    }
+</main>
+
+<footer class="site-footer">
+    <div class="container footer-inner">
+        <div>
+            <div class="footer-brand">
+                <partial name="_BrandLockup" model="@("")" />
+            </div>
+            <p class="footer-tagline">ReFuel — Your intelligent fuel companion.</p>
+            <p class="footer-copy">Fuel Delivery, fuel prices, stations, routes and smarter decisions — all in one place.</p>
+        </div>
+        <div>
+            <h4>@T["footer.product"]</h4>
+            <ul>
+                <li><a asp-controller="Orders" asp-action="Create">@T["nav.delivery"]</a></li>
+                <li><a asp-controller="Prices" asp-action="Index">@T["nav.prices"]</a></li>
+                <li><a asp-controller="Stations" asp-action="Map">@T["nav.map"]</a></li>
+                <li><a asp-controller="Conditions" asp-action="Index">@T["nav.conditions"]</a></li>
+                <li><a asp-controller="Analytics" asp-action="Index">@T["nav.ai"]</a></li>
+            </ul>
+        </div>
+        <div>
+            <h4>@T["footer.forbusiness"]</h4>
+            <ul>
+                <li><a asp-controller="Home" asp-action="Business">@T["footer.contracts"]</a></li>
+                <li><a asp-controller="Business" asp-action="Index">@T["nav.business"]</a></li>
+                <li><a asp-controller="Home" asp-action="About">@T["nav.about"]</a></li>
+                <li><a href="/openapi/v1.json">API</a></li>
+            </ul>
+        </div>
+        <div>
+            <h4>@T["footer.data"]</h4>
+            <ul>
+                <li>@T["footer.source.erc"]</li>
+                <li>@T["footer.source.osm"]</li>
+                <li>@T["footer.source.amsm"]</li>
+                <li>@T["footer.source.users"]</li>
+            </ul>
+        </div>
+    </div>
+    <div class="container footer-bottom">
+        <span>© @DateTime.Now.Year ReFuel Macedonia</span>
+        <span>@T["footer.madein"]</span>
+    </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

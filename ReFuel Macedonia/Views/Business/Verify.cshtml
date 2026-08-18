@@ -1,0 +1,83 @@
+@model VerifyDocumentVm
+@{
+    ViewData["Title"] = T["verify.title"];
+    var asked = !string.IsNullOrEmpty(Model.Number);
+}
+
+<div class="container">
+    <div class="auth-wrap">
+        <div class="card">
+            <span class="eyebrow"><partial name="_Icons" model="@("shield")" /> ReFuel Macedonia</span>
+            <h1>@T["verify.title"]</h1>
+            <p class="muted small">@T["verify.subtitle"]</p>
+
+            @if (!asked)
+            {
+                <form method="get" class="form-grid" style="margin-top:.8rem">
+                    <div>
+                        <label for="proof">@T["verify.number"]</label>
+                        <input type="text" id="proof" name="proof" placeholder="POD-2026-000123" />
+                    </div>
+                    <div>
+                        <label for="invoice">@T["verify.invoicenumber"]</label>
+                        <input type="text" id="invoice" name="invoice" placeholder="RF-INV-2026-00012" />
+                    </div>
+                    <div style="grid-column:1 / -1">
+                        <label for="h">@T["proof.hash"]</label>
+                        <input type="text" id="h" name="h" class="mono" placeholder="A1B2C3…" />
+                    </div>
+                    <div style="grid-column:1 / -1">
+                        <button class="btn btn-primary btn-block" type="submit">@T["verify.check"]</button>
+                    </div>
+                </form>
+            }
+            else if (!Model.Found)
+            {
+                <div class="verify-badge bad" style="margin:1rem 0">
+                    <partial name="_Icons" model="@("alert")" /> @T["verify.notfound"]
+                </div>
+                <p class="small muted">@T["verify.notfound.detail"] <span class="mono">@Model.Number</span></p>
+            }
+            else
+            {
+                <div class="verify-badge @(Model.IsValid ? "ok" : "bad")" style="margin:1rem 0">
+                    <partial name="_Icons" model="@(Model.IsValid ? "check" : "alert")" />
+                    @(Model.IsValid ? T["verify.valid"] : (string.IsNullOrEmpty(Model.Hash) ? T["verify.hashmissing"] : T["verify.invalid"]))
+                </div>
+
+                <table class="data" style="font-size:.92rem">
+                    <tbody>
+                    <tr><td>@T["verify.document"]</td><td><strong class="mono">@Model.Number</strong></td></tr>
+                    <tr><td>@T["verify.kind"]</td><td>@(Model.Kind == "invoice" ? T["invoice.title"] : T["proof.title"])</td></tr>
+                    @if (Model.IssuedOn.HasValue)
+                    {
+                        <tr><td>@T["verify.issued"]</td><td>@Fmt.LocalTime(Model.IssuedOn.Value)</td></tr>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Company))
+                    {
+                        <tr><td>@T["proof.customer"]</td><td>@Model.Company</td></tr>
+                    }
+                    @if (Model.Litres.HasValue)
+                    {
+                        <tr><td>@T["proof.litres"]</td><td><strong>@Fmt.Litres(Model.Litres.Value)</strong></td></tr>
+                    }
+                    @if (Model.Total.HasValue)
+                    {
+                        <tr><td>@T["invoice.total"]</td><td><strong>@Fmt.Money(Model.Total.Value, 2)</strong></td></tr>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.ExpectedHash))
+                    {
+                        <tr><td>@T["proof.hash"]</td><td><span class="mono small">@Model.ExpectedHash</span></td></tr>
+                    }
+                    </tbody>
+                </table>
+
+                @if (!Model.IsValid)
+                {
+                    <p class="small muted" style="margin-top:.8rem">@(string.IsNullOrEmpty(Model.Hash) ? T["verify.hashmissing.detail"] : T["verify.invalid.detail"])</p>
+                }
+                <p class="tiny muted" style="margin-top:.8rem">@T["verify.note"]</p>
+            }
+        </div>
+    </div>
+</div>

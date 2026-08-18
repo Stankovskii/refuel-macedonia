@@ -1,0 +1,48 @@
+@model List<PriceReport>
+@{
+    ViewData["Title"] = T["report.mine"];
+}
+
+<div class="container">
+    <a class="back-link" asp-controller="Profile" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["profile.title"]
+    </a>
+
+    <h1>@T["report.mine"]</h1>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["prices.col.date"]</th>
+                <th>@T["nav.stations"]</th>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["station.price"]</th>
+                <th class="num">@T["report.plausibility"]</th>
+                <th>@T["common.status"]</th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="6" class="center muted">@T["common.nodata"]</td></tr>
+            }
+            @foreach (var report in Model)
+            {
+                <tr>
+                    <td>@Fmt.LocalTime(report.CreatedAtUtc)</td>
+                    <td><a asp-controller="Stations" asp-action="Details" asp-route-id="@report.StationId">@report.Station?.Name</a></td>
+                    <td>@report.FuelType?.LocalizedName(T.Culture)</td>
+                    <td class="num">@Fmt.N(report.Price, 2)</td>
+                    <td class="num">@Fmt.N(report.PlausibilityScore * 100, 0) %</td>
+                    <td>
+                        <span class="badge @(report.Status == ReportStatus.Approved ? "badge-ok" : report.Status == ReportStatus.Rejected ? "badge-err" : "badge-warn")">
+                            @T["report.status." + report.Status.ToString().ToLowerInvariant()]
+                        </span>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

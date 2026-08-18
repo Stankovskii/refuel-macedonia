@@ -1,0 +1,82 @@
+@model OrderListVm
+@{
+    ViewData["Title"] = T["orders.title"];
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["orders.title"]</h1>
+            <p class="muted small">@T["orders.subtitle"]</p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">@T["nav.order"]</a>
+    </div>
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><strong>@Model.DeliveredCount</strong><span>@T["orders.kpi.delivered"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Litres(Model.TotalLitres)</strong><span>@T["orders.kpi.litres"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.TotalSpent, 0)</strong><span>@T["orders.kpi.spent"]</span></div>
+        <div class="card kpi"><strong>@Model.Orders.Count</strong><span>@T["orders.kpi.page"]</span></div>
+    </div>
+
+    <div class="pill-tabs section">
+        <a class="@(Model.Status is null ? "active" : "")" asp-action="Index">@T["common.all"]</a>
+        @foreach (var status in new[] { OrderStatus.Pending, OrderStatus.Confirmed, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Cancelled })
+        {
+            <a class="@(Model.Status == status ? "active" : "")" asp-action="Index" asp-route-status="@status">@T[Fmt.StatusKey(status)]</a>
+        }
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["orders.col.ref"]</th>
+                <th>@T["prices.col.date"]</th>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["order.litres"]</th>
+                <th class="num">@T["order.total"]</th>
+                <th>@T["order.type"]</th>
+                <th>@T["common.status"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (Model.Orders.Count == 0)
+            {
+                <tr><td colspan="8" class="center muted">@T["common.nodata"]</td></tr>
+            }
+            @foreach (var order in Model.Orders)
+            {
+                <tr>
+                    <td class="mono"><a asp-action="Details" asp-route-id="@order.Id">@order.Reference</a></td>
+                    <td class="small">@Fmt.LocalTime(order.CreatedAtUtc)</td>
+                    <td>@order.FuelType?.LocalizedName(T.Culture)</td>
+                    <td class="num">@Fmt.Litres(order.Litres)</td>
+                    <td class="num"><strong>@Fmt.Money(order.Total, 0)</strong></td>
+                    <td><span class="badge">@T[Fmt.OrderTypeKey(order.Type)]</span></td>
+                    <td><span class="badge @Fmt.StatusClass(order.Status)">@T[Fmt.StatusKey(order.Status)]</span></td>
+                    <td class="num"><a class="btn btn-ghost btn-sm" asp-action="Details" asp-route-id="@order.Id">@T["common.details"]</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="pager">
+            @for (var p = 1; p <= Model.TotalPages; p++)
+            {
+                if (p == Model.Page)
+                {
+                    <span class="current">@p</span>
+                }
+                else
+                {
+                    <a asp-action="Index" asp-route-page="@p" asp-route-status="@Model.Status">@p</a>
+                }
+            }
+        </div>
+    }
+</div>

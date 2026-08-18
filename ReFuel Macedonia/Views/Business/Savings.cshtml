@@ -1,0 +1,139 @@
+@model SavingsResultVm
+@{
+    ViewData["Title"] = T["business.savings.title"];
+    var input = Model.Input;
+    var better = Model.CheaperOverall;
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("wallet")" /> @T["business.savings.eyebrow"]</span>
+            <h1>@T["business.savings.title"]</h1>
+            <p class="muted small">@T["business.savings.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            <a asp-action="Index">@T["business.tab.overview"]</a>
+            <a asp-action="Fleet">@T["business.tab.fleet"]</a>
+            <a asp-action="Sites">@T["business.tab.sites"]</a>
+            <a asp-action="Schedules">@T["business.tab.schedules"]</a>
+            <a class="active" asp-action="Savings">@T["business.tab.savings"]</a>
+        </div>
+    </div>
+
+    <div class="alert alert-info section">
+        <partial name="_Icons" model="@("shield")" />
+        <div>@T["business.savings.disclaimer"]</div>
+    </div>
+
+    <div class="split">
+        <div class="card">
+            <h2>@T["business.savings.inputs"]</h2>
+
+            <form method="get" class="form-grid">
+                <div>
+                    <label>@T["business.savings.litres"]</label>
+                    <input type="number" name="LitresPerMonth" step="100" min="0" value="@Fmt.Plain(input.LitresPerMonth, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.vehicles"]</label>
+                    <input type="number" name="VehicleCount" step="1" min="1" value="@Fmt.Plain(input.VehicleCount, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.trips"]</label>
+                    <input type="number" name="StationTripsPerMonth" step="1" min="0" value="@Fmt.Plain(input.StationTripsPerMonth, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.minutes"]</label>
+                    <input type="number" name="MinutesPerTrip" step="1" min="0" value="@Fmt.Plain(input.MinutesPerTrip, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.detour"]</label>
+                    <input type="number" name="DetourKmPerTrip" step="0.5" min="0" value="@Fmt.Plain(input.DetourKmPerTrip, 1)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.driverhour"]</label>
+                    <input type="number" name="DriverCostPerHour" step="10" min="0" value="@Fmt.Plain(input.DriverCostPerHour, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.vehiclekm"]</label>
+                    <input type="number" name="VehicleCostPerKm" step="1" min="0" value="@Fmt.Plain(input.VehicleCostPerKm, 0)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.stationprice"]</label>
+                    <input type="number" name="StationPricePerLitre" step="0.1" min="0" value="@Fmt.Plain(input.StationPricePerLitre, 2)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.refuelprice"]</label>
+                    <input type="number" name="ReFuelPricePerLitre" step="0.1" min="0" value="@Fmt.Plain(input.ReFuelPricePerLitre, 2)" />
+                </div>
+                <div>
+                    <label>@T["business.savings.fee"]</label>
+                    <input type="number" name="ReFuelDeliveryFeePerMonth" step="100" min="0" value="@Fmt.Plain(input.ReFuelDeliveryFeePerMonth, 0)" />
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary btn-block" type="submit">@T["business.savings.calculate"]</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="stack">
+            <div class="card @(better ? "card-dark" : "")">
+                <span class="upper" style="@(better ? "color:var(--brand-400)" : "")">@T["business.savings.result"]</span>
+                <h2 style="@(better ? "color:#fff" : "")">
+                    @(Model.MonthlyDifference >= 0 ? "+" : "")@Fmt.Money(Model.MonthlyDifference, 0)
+                </h2>
+                <p class="muted small">
+                    @T["business.savings.permonth"] ·
+                    @(Model.YearlyDifference >= 0 ? "+" : "")@Fmt.Money(Model.YearlyDifference, 0) @T["business.savings.peryear"]
+                </p>
+
+                <div class="divider"></div>
+
+                <table class="data" style="font-size:.86rem">
+                    <tbody>
+                    <tr><td colspan="2"><strong>@T["business.savings.stationway"]</strong></td></tr>
+                    <tr><td>@T["business.savings.fuelcost"]</td><td class="num mono">@Fmt.N(Model.StationFuelCost, 0)</td></tr>
+                    <tr><td>@T["business.savings.labour"]</td><td class="num mono">@Fmt.N(Model.StationLabourCost, 0)</td></tr>
+                    <tr><td>@T["business.savings.driving"]</td><td class="num mono">@Fmt.N(Model.StationDrivingCost, 0)</td></tr>
+                    <tr><td><strong>@T["business.savings.total"]</strong></td><td class="num mono"><strong>@Fmt.N(Model.StationTotalCost, 0)</strong></td></tr>
+                    <tr><td colspan="2" style="padding-top:.7rem"><strong>@T["business.savings.refuelway"]</strong></td></tr>
+                    <tr><td>@T["business.savings.fuelcost"]</td><td class="num mono">@Fmt.N(Model.ReFuelFuelCost, 0)</td></tr>
+                    <tr><td>@T["business.savings.deliveryfee"]</td><td class="num mono">@Fmt.N(Model.ReFuelDeliveryCost, 0)</td></tr>
+                    <tr><td><strong>@T["business.savings.total"]</strong></td><td class="num mono"><strong>@Fmt.N(Model.ReFuelTotalCost, 0)</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card kpi"><strong>@Fmt.N(Model.HoursSavedPerMonth, 1) h</strong><span>@T["business.savings.hours"]</span></div>
+                <div class="card kpi"><strong>@Fmt.N(Model.KilometresSavedPerMonth, 0) km</strong><span>@T["business.savings.km"]</span></div>
+            </div>
+
+            <div class="card">
+                <h3>@T["business.savings.perlitre"]</h3>
+                <p class="small">
+                    @if (Model.CheaperPerLitre)
+                    {
+                        @T["business.savings.perlitre.cheaper"]
+                    }
+                    else
+                    {
+                        @T["business.savings.perlitre.higher"]
+                    }
+                </p>
+
+                <div class="divider"></div>
+
+                <h3>@T["admin.economics.assumptions"]</h3>
+                <ul class="assumption-list">
+                    @foreach (var assumption in Model.Assumptions)
+                    {
+                        <li>@assumption</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

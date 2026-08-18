@@ -1,0 +1,6 @@
+@ReFuel_Macedonia_HostAddress = http://localhost:5120
+
+GET {{ReFuel_Macedonia_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

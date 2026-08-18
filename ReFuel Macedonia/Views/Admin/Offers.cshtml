@@ -1,0 +1,176 @@
+@model List<BusinessOffer>
+@{
+    ViewData["Title"] = T["admin.offers.title"];
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    var tiers = ViewBag.Tiers as List<PricingTier> ?? new List<PricingTier>();
+
+    string StatusClass(OfferStatus status) => status switch
+    {
+        OfferStatus.Accepted => "badge-ok",
+        OfferStatus.Declined => "badge-err",
+        OfferStatus.Sent => "badge-info",
+        OfferStatus.Expired => "badge-warn",
+        _ => "badge"
+    };
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("building")" /> @T["admin.offers.eyebrow"]</span>
+            <h1>@T["admin.offers.title"]</h1>
+            <p class="muted small">@T["admin.offers.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.offers.new"]</h2>
+        <p class="muted small">@T["admin.offers.new.subtitle"]</p>
+
+        <form asp-action="CreateOffer" method="post">
+            @Html.AntiForgeryToken()
+            <div class="form-grid">
+                <div>
+                    <label>@T["business.company"]</label>
+                    <input name="CompanyName" required />
+                </div>
+                <div>
+                    <label>@T["business.contact"]</label>
+                    <input name="ContactPerson" />
+                </div>
+                <div>
+                    <label>@T["account.email"]</label>
+                    <input name="ContactEmail" type="email" />
+                </div>
+                <div>
+                    <label>@T["order.phone"]</label>
+                    <input name="ContactPhone" />
+                </div>
+                <div>
+                    <label>@T["station.city"]</label>
+                    <input name="City" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.customertype"]</label>
+                    <select name="CustomerType">
+                        @foreach (var type in Enum.GetValues<CustomerType>())
+                        {
+                            var tier = tiers.FirstOrDefault(t => t.CustomerType == type);
+                            <option value="@type">
+                                @T["customertype." + type.ToString().ToLowerInvariant()]
+                                @if (tier is not null)
+                                {
+                                    <text> (+@Fmt.N(tier.MarginPerLitre, 2) @T["common.perlitre"])</text>
+                                }
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["station.fuel"]</label>
+                    <select name="FuelTypeId">
+                        @foreach (var fuel in fuels)
+                        {
+                            <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["admin.offers.litres"]</label>
+                    <input type="number" name="EstimatedLitresPerMonth" step="100" min="0" value="10000" required />
+                </div>
+                <div>
+                    <label>@T["admin.offers.deliveries"]</label>
+                    <input type="number" name="DeliveriesPerMonth" step="1" min="1" value="20" />
+                </div>
+                <div>
+                    <label>@T["admin.offers.distance"]</label>
+                    <input type="number" name="AverageDistanceKm" step="0.5" min="0" value="14" />
+                </div>
+                <div>
+                    <label>@T["admin.offers.margin"]</label>
+                    <input type="number" name="ProposedMarginPerLitre" step="0.1" min="0" value="0" />
+                    <span class="tiny muted">@T["admin.offers.margin.hint"]</span>
+                </div>
+                <div>
+                    <label>@T["admin.offers.fee"]</label>
+                    <input type="number" name="ProposedDeliveryFee" step="10" min="0" value="0" />
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-sm" type="submit" style="margin-top:.8rem">@T["admin.offers.create"]</button>
+        </form>
+    </div>
+
+    <div class="stack">
+        @foreach (var offer in Model)
+        {
+            <div class="card">
+                <div class="spread">
+                    <div>
+                        <span class="badge @StatusClass(offer.Status)">@T["offer.status." + offer.Status.ToString().ToLowerInvariant()]</span>
+                        <span class="badge badge-info">@T["customertype." + offer.CustomerType.ToString().ToLowerInvariant()]</span>
+                        <h3 style="margin-top:.4rem">@offer.CompanyName</h3>
+                        <p class="small muted">
+                            @offer.OfferNumber · @offer.City ·
+                            @offer.ContactPerson @(string.IsNullOrWhiteSpace(offer.ContactPhone) ? "" : " · " + offer.ContactPhone)
+                        </p>
+                    </div>
+                    <div class="right">
+                        <div class="upper">@T["admin.offers.contribution"]</div>
+                        <div class="mono" style="font-size:1.35rem;font-weight:800">@Fmt.Money(offer.EstimatedGrossContribution, 0)</div>
+                        <div class="tiny muted">@T["admin.offers.permonth"]</div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="grid grid-4">
+                    <div>
+                        <div class="upper">@T["admin.offers.litres"]</div>
+                        <div class="mono">@Fmt.N(offer.EstimatedLitresPerMonth, 0) л</div>
+                    </div>
+                    <div>
+                        <div class="upper">@T["admin.offers.price"]</div>
+                        <div class="mono">@Fmt.N(offer.EffectivePricePerLitre, 2) @T["common.perlitre"]</div>
+                        <div class="tiny muted">
+                            @Fmt.N(offer.BaseCostPerLitre, 2) + @Fmt.N(offer.ProposedMarginPerLitre, 2) − @Fmt.N(offer.VolumeDiscountPerLitre, 2)
+                        </div>
+                    </div>
+                    <div>
+                        <div class="upper">@T["admin.offers.revenue"]</div>
+                        <div class="mono">@Fmt.N(offer.EstimatedMonthlyRevenue, 0)</div>
+                    </div>
+                    <div>
+                        <div class="upper">@T["admin.offers.grossmargin"]</div>
+                        <div class="mono">@Fmt.N(offer.EstimatedGrossFuelMargin, 0)</div>
+                        <div class="tiny muted">− @Fmt.N(offer.EstimatedDeliveryCost, 0) @T["admin.offers.deliverycost"]</div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(offer.Notes))
+                {
+                    <p class="tiny muted" style="margin-top:.6rem">@offer.Notes</p>
+                }
+
+                <form asp-action="SetOfferStatus" method="post" class="flex" style="margin-top:.7rem">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@offer.Id" />
+                    <select name="status">
+                        @foreach (var value in Enum.GetValues<OfferStatus>())
+                        {
+                            <option value="@value" selected="@(value == offer.Status)">@T["offer.status." + value.ToString().ToLowerInvariant()]</option>
+                        }
+                    </select>
+                    <button class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                    <span class="tiny muted">@T["admin.offers.valid"]: @offer.ValidUntil.ToString("dd.MM.yyyy")</span>
+                </form>
+            </div>
+        }
+    </div>
+</div>

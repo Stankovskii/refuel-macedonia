@@ -1,0 +1,90 @@
+@{
+    var isAdministrator = User.IsInRole("Administrator");
+    var currentController = (ViewContext.RouteData.Values["controller"] as string) ?? "";
+    var currentAction = (ViewContext.RouteData.Values["action"] as string) ?? "";
+
+    string Active(string controller, params string[] actions)
+    {
+        if (!string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)) return "";
+        if (actions.Length == 0) return "on";
+        return actions.Any(a => string.Equals(a, currentAction, StringComparison.OrdinalIgnoreCase)) ? "on" : "";
+    }
+}
+
+<nav class="admin-nav" aria-label="@T["admin.title"]">
+
+    @if (isAdministrator)
+    {
+        <div class="group">
+            <div class="group-label">@T["admin.group.overview"]</div>
+            <a class="@Active("Admin", "Index")" asp-controller="Admin" asp-action="Index">
+                <partial name="_Icons" model="@("chart")" /> @T["admin.tab.dashboard"]
+            </a>
+        </div>
+
+        <div class="group">
+            <div class="group-label">@T["admin.group.money"]</div>
+            <a class="@Active("Admin", "Pricing")" asp-controller="Admin" asp-action="Pricing">
+                <partial name="_Icons" model="@("tag")" /> @T["admin.tab.pricing"]
+            </a>
+            <a class="@Active("Admin", "Profitability")" asp-controller="Admin" asp-action="Profitability">
+                <partial name="_Icons" model="@("wallet")" /> @T["admin.tab.profit"]
+            </a>
+            <a class="@Active("Admin", "Economics")" asp-controller="Admin" asp-action="Economics">
+                <partial name="_Icons" model="@("sparkle")" /> @T["admin.tab.economics"]
+            </a>
+            <a class="@Active("Admin", "Offers")" asp-controller="Admin" asp-action="Offers">
+                <partial name="_Icons" model="@("building")" /> @T["admin.tab.offers"]
+            </a>
+        </div>
+    }
+
+    <div class="group">
+        <div class="group-label">@T["admin.group.operations"]</div>
+        <a class="@Active("Dispatch", "Index")" asp-controller="Dispatch" asp-action="Index">
+            <partial name="_Icons" model="@("map")" /> @T["admin.tab.dispatch"]
+        </a>
+        <a class="@Active("Dispatch", "Tankers")" asp-controller="Dispatch" asp-action="Tankers">
+            <partial name="_Icons" model="@("tank")" /> @T["admin.tab.tankers"]
+        </a>
+        @if (isAdministrator)
+        {
+            <a class="@Active("Admin", "Routes")" asp-controller="Admin" asp-action="Routes">
+                <partial name="_Icons" model="@("road")" /> @T["admin.tab.routes"]
+            </a>
+            <a class="@Active("Admin", "Orders")" asp-controller="Admin" asp-action="Orders">
+                <partial name="_Icons" model="@("shopping")" /> @T["nav.orders"]
+            </a>
+            <a class="@Active("Admin", "Contracts")" asp-controller="Admin" asp-action="Contracts">
+                <partial name="_Icons" model="@("invoice")" /> @T["admin.contracts.title"]
+            </a>
+        }
+    </div>
+
+    @if (isAdministrator)
+    {
+        <div class="group">
+            <div class="group-label">@T["admin.group.data"]</div>
+            <a class="@Active("Admin", "Stations")" asp-controller="Admin" asp-action="Stations">
+                <partial name="_Icons" model="@("pin")" /> @T["nav.stations"]
+            </a>
+            <a class="@Active("Admin", "Prices")" asp-controller="Admin" asp-action="Prices">
+                <partial name="_Icons" model="@("fuel")" /> @T["nav.prices"]
+            </a>
+            <a class="@Active("Admin", "Reports")" asp-controller="Admin" asp-action="Reports">
+                <partial name="_Icons" model="@("bell")" /> @T["admin.tab.reports"]
+            </a>
+            <a class="@Active("Admin", "Anomalies")" asp-controller="Admin" asp-action="Anomalies">
+                <partial name="_Icons" model="@("alert")" /> @T["admin.tab.anomalies"]
+            </a>
+        </div>
+
+        <div class="group">
+            <div class="group-label">@T["admin.group.marketing"]</div>
+            <a class="@Active("Admin", "Promotions")" asp-controller="Admin" asp-action="Promotions">
+                <partial name="_Icons" model="@("gift")" /> @T["nav.promotions"]
+            </a>
+        </div>
+    }
+
+</nav>

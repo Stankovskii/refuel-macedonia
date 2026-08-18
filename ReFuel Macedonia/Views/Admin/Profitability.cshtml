@@ -1,0 +1,291 @@
+@model ProfitabilityVm
+@{
+    ViewData["Title"] = T["admin.profit.title"];
+
+    var periods = new[] { 30, 90, 180, 365 };
+    var total = Model.Total;
+    var rows = Model.AllRows.ToList();
+    var costTotal = total.DeliveryCost <= 0 ? 1m : total.DeliveryCost;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("wallet")" /> @T["admin.profit.eyebrow"]</span>
+            <h1>@T["admin.profit.title"]</h1>
+            <p class="muted small">@T["admin.profit.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="flex section">
+        <div class="pill-tabs">
+            @foreach (var period in periods)
+            {
+                <a class="@(period == Model.Days ? "active" : "")" asp-action="Profitability" asp-route-days="@period">
+                    @T.Format("admin.profit.lastdays", period)
+                </a>
+            }
+        </div>
+        <a class="btn btn-quiet btn-sm" asp-action="Pricing">
+            <partial name="_Icons" model="@("settings")" /> @T["admin.profit.editcosts"]
+        </a>
+    </div>
+
+    <div class="grid grid-5 section">
+        <div class="card kpi"><strong>@Fmt.Money(total.Revenue, 0)</strong><span>@T["admin.profit.revenue"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(total.GrossFuelMargin, 0)</strong><span>@T["admin.profit.grossmargin"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(total.DeliveryRevenue, 0)</strong><span>@T["admin.profit.deliveryrevenue"]</span></div>
+        <div class="card kpi"><strong>−@Fmt.Money(total.DeliveryCost, 0)</strong><span>@T["admin.profit.deliverycost"]</span></div>
+        <div class="card kpi">
+            <strong class="@(total.GrossContribution >= 0 ? "gain" : "loss")">@Fmt.Money(total.GrossContribution, 0)</strong>
+            <span>@T["admin.profit.contribution"]</span>
+        </div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["admin.profit.costsplit"]</h2>
+            <p class="muted small">@T["admin.profit.costsplit.subtitle"]</p>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["admin.profit.costitem"]</th>
+                        <th class="num">@T["admin.profit.rate"]</th>
+                        <th class="num">@T["admin.profit.amount"]</th>
+                        <th class="num">@T["admin.profit.share"]</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td><partial name="_Icons" model="@("user")" /> @T["admin.profit.drivercost"]</td>
+                        <td class="num mono">@Fmt.N(Model.Settings.DriverCostPerHour, 0) @T["admin.profit.perhour"]</td>
+                        <td class="num mono">@Fmt.N(total.DriverCost, 0)</td>
+                        <td class="num mono">@Fmt.Percent((double)(total.DriverCost / costTotal) * 100, 0)</td>
+                    </tr>
+                    <tr>
+                        <td><partial name="_Icons" model="@("truck")" /> @T["admin.profit.tankercost"]</td>
+                        <td class="num mono">@Fmt.N(Model.Settings.TankerCostPerKm, 2) @T["admin.profit.perkm"]</td>
+                        <td class="num mono">@Fmt.N(total.TankerCost, 0)</td>
+                        <td class="num mono">@Fmt.Percent((double)(total.TankerCost / costTotal) * 100, 0)</td>
+                    </tr>
+                    <tr>
+                        <td><partial name="_Icons" model="@("settings")" /> @T["admin.profit.dispatchcost"]</td>
+                        <td class="num mono">@Fmt.N(Model.Settings.FixedDispatchCost, 0) @T["admin.profit.perdelivery"]</td>
+                        <td class="num mono">@Fmt.N(total.DispatchCost, 0)</td>
+                        <td class="num mono">@Fmt.Percent((double)(total.DispatchCost / costTotal) * 100, 0)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>@T["admin.profit.deliverycost"]</strong></td>
+                        <td class="num mono">@Fmt.N(total.AverageDistanceKm, 1) km @T["admin.profit.avgdistance"]</td>
+                        <td class="num mono"><strong>@Fmt.N(total.DeliveryCost, 0)</strong></td>
+                        <td class="num mono">100 %</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="chart-sm"><canvas id="cost-chart"></canvas></div>
+        </div>
+
+        <div class="stack">
+            <div class="card card-dark">
+                <span class="upper" style="color:var(--brand-400)">@T.Format("admin.profit.periodresult", Model.Days)</span>
+                <h2 style="color:#fff" class="@(Model.OperatingResult >= 0 ? "" : "loss")">
+                    @Fmt.Money(Model.OperatingResult, 0)
+                </h2>
+
+                <div class="divider"></div>
+
+                <table class="data" style="font-size:.86rem">
+                    <tbody>
+                    <tr><td>@T["admin.profit.grossmargin"]</td><td class="num mono">@Fmt.N(total.GrossFuelMargin, 0)</td></tr>
+                    <tr><td>@T["admin.profit.deliveryrevenue"]</td><td class="num mono">@Fmt.N(total.DeliveryRevenue, 0)</td></tr>
+                    @if (total.Discounts > 0)
+                    {
+                        <tr><td>@T["admin.profit.discounts"]</td><td class="num mono">−@Fmt.N(total.Discounts, 0)</td></tr>
+                    }
+                    <tr><td>@T["admin.profit.deliverycost"]</td><td class="num mono">−@Fmt.N(total.DeliveryCost, 0)</td></tr>
+                    <tr><td><strong>@T["admin.profit.contribution"]</strong></td><td class="num mono"><strong>@Fmt.N(total.GrossContribution, 0)</strong></td></tr>
+                    <tr><td>@T["admin.profit.fixedshare"]</td><td class="num mono">−@Fmt.N(Model.PeriodFixedCosts, 0)</td></tr>
+                    <tr>
+                        <td><strong>@T["admin.economics.operating"]</strong></td>
+                        <td class="num mono">
+                            <strong class="@(Model.OperatingResult >= 0 ? "gain" : "loss")">@Fmt.N(Model.OperatingResult, 0)</strong>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+
+                <p class="tiny muted" style="margin-top:.6rem">@T["pricing.internal.notprofit"]</p>
+            </div>
+
+            <div class="card">
+                <h3>@T["admin.economics.assumptions"]</h3>
+                <ul class="assumption-list">
+                    @foreach (var assumption in Model.Assumptions)
+                    {
+                        <li>@assumption</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.profit.bycompany"]</h2>
+        <p class="muted small">@T["admin.profit.bycompany.subtitle"]</p>
+
+        @if (rows.Count == 0)
+        {
+            <p class="muted small">@T["common.nodata"]</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["business.company"]</th>
+                        <th class="num">@T["order.litres"]</th>
+                        <th class="num">@T["admin.profit.deliveries"]</th>
+                        <th class="num">@T["admin.profit.revenue"]</th>
+                        <th class="num">@T["admin.profit.fuelcost"]</th>
+                        <th class="num">@T["admin.profit.grossmargin"]</th>
+                        <th class="num">@T["admin.profit.deliveryrevenue"]</th>
+                        <th class="num">@T["admin.profit.deliverycost"]</th>
+                        <th class="num">@T["admin.profit.contribution"]</th>
+                        <th class="num">@T["admin.profit.percent"]</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@row.Company</strong>
+                                <div class="tiny muted">
+                                    @T["customertype." + row.CustomerType.ToString().ToLowerInvariant()]
+                                    @if (!string.IsNullOrEmpty(row.TierName))
+                                    {
+                                        <text> · @row.TierName</text>
+                                    }
+                                    @if (!string.IsNullOrEmpty(row.City))
+                                    {
+                                        <text> · @row.City</text>
+                                    }
+                                </div>
+                            </td>
+                            <td class="num mono">@Fmt.N(row.Litres, 0)</td>
+                            <td class="num mono">@row.Deliveries</td>
+                            <td class="num mono">
+                                @Fmt.N(row.Revenue, 0)
+                                @if (row.Discounts > 0)
+                                {
+                                    <div class="tiny muted">−@Fmt.N(row.Discounts, 0) @T["admin.profit.discounts"]</div>
+                                }
+                            </td>
+                            <td class="num mono">@Fmt.N(row.FuelCost, 0)</td>
+                            <td class="num mono">
+                                @Fmt.N(row.GrossFuelMargin, 0)
+                                <div class="tiny muted">@Fmt.N(row.MarginPerLitre, 2) @T["common.perlitre"]</div>
+                            </td>
+                            <td class="num mono">@Fmt.N(row.DeliveryRevenue, 0)</td>
+                            <td class="num mono">
+                                −@Fmt.N(row.DeliveryCost, 0)
+                                <div class="tiny muted">@Fmt.N(row.AverageDistanceKm, 1) km</div>
+                            </td>
+                            <td class="num mono">
+                                <strong class="@(row.IsProfitable ? "gain" : "loss")">@Fmt.N(row.GrossContribution, 0)</strong>
+                                <div class="tiny muted">@Fmt.N(row.ContributionPerDelivery, 0) / @T["admin.profit.delivery"]</div>
+                            </td>
+                            <td class="num mono">@Fmt.Percent(row.ContributionPercent, 1)</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                    <tr>
+                        <td><strong>@total.Company</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.Litres, 0)</strong></td>
+                        <td class="num mono"><strong>@total.Deliveries</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.Revenue, 0)</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.FuelCost, 0)</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.GrossFuelMargin, 0)</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.DeliveryRevenue, 0)</strong></td>
+                        <td class="num mono"><strong>−@Fmt.N(total.DeliveryCost, 0)</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(total.GrossContribution, 0)</strong></td>
+                        <td class="num mono"><strong>@Fmt.Percent(total.ContributionPercent, 1)</strong></td>
+                    </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.profit.chart"]</h2>
+        <div class="chart-box"><canvas id="company-chart"></canvas></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            if (typeof Chart === 'undefined') return;
+
+            var costEl = document.getElementById('cost-chart');
+            if (costEl) {
+                new Chart(costEl, {
+                    type: 'doughnut',
+                    data: {
+                        labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                            new[] { T["admin.profit.drivercost"], T["admin.profit.tankercost"], T["admin.profit.dispatchcost"] })),
+                        datasets: [{
+                            data: [@Fmt.Plain(total.DriverCost, 0), @Fmt.Plain(total.TankerCost, 0), @Fmt.Plain(total.DispatchCost, 0)],
+                            backgroundColor: ['#FF6A00', '#4A5262', '#FFB03A'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, cutout: '58%',
+                        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
+                    }
+                });
+            }
+
+            var companyEl = document.getElementById('company-chart');
+            if (!companyEl) return;
+
+            var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(rows.Select(r => r.Company)));
+            var contribution = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(rows.Select(r => r.GrossContribution)));
+            var cost = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(rows.Select(r => r.DeliveryCost)));
+            var contributionLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["admin.profit.contribution"]));
+            var costLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["admin.profit.deliverycost"]));
+
+            new Chart(companyEl, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: contributionLabel, data: contribution, backgroundColor: 'rgba(255,106,0,.85)', borderRadius: 6 },
+                        { label: costLabel, data: cost, backgroundColor: 'rgba(74,82,98,.75)', borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        })();
+    </script>
+}

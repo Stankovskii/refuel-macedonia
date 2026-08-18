@@ -1,0 +1,195 @@
+@model List<DeliverySchedule>
+@{
+    ViewData["Title"] = T["business.schedules.title"];
+    var account = ViewBag.Account as BusinessAccount;
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    var sites = ViewBag.Sites as List<ConstructionSite> ?? new List<ConstructionSite>();
+
+    var dayLabels = new[] { T["day.sun"], T["day.mon"], T["day.tue"], T["day.wed"], T["day.thu"], T["day.fri"], T["day.sat"] };
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Fleet" asp-route-accountId="@account?.Id">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["business.tab.fleet"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("calendar")" /> @T["business.schedules.eyebrow"]</span>
+            <h1>@T["business.schedules.title"]</h1>
+            <p class="muted small">@T["business.schedules.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            <a asp-action="Index" asp-route-accountId="@account?.Id">@T["business.tab.overview"]</a>
+            <a asp-action="Fleet" asp-route-accountId="@account?.Id">@T["business.tab.fleet"]</a>
+            <a asp-action="Sites" asp-route-accountId="@account?.Id">@T["business.tab.sites"]</a>
+            <a class="active" asp-action="Schedules" asp-route-accountId="@account?.Id">@T["business.tab.schedules"]</a>
+            <a asp-action="Savings">@T["business.tab.savings"]</a>
+        </div>
+    </div>
+
+    <div class="stack section">
+        @foreach (var schedule in Model)
+        {
+            var days = schedule.Days.Select(d => (int)d).ToHashSet();
+
+            <div class="card">
+                <div class="spread">
+                    <div>
+                        <span class="badge badge-info">@T["schedulekind." + schedule.Kind.ToString().ToLowerInvariant()]</span>
+                        <span class="badge">@T["contract.freq." + schedule.Frequency.ToString().ToLowerInvariant()]</span>
+                        <h3 style="margin-top:.35rem">@schedule.Title</h3>
+                        <p class="small muted" style="margin:0">
+                            @schedule.Address, @schedule.City ·
+                            @(schedule.FuelType?.LocalizedName(T.Culture) ?? "—")
+                            @if (schedule.ConstructionSite is not null)
+                            {
+                                <text> · @schedule.ConstructionSite.Name</text>
+                            }
+                        </p>
+                    </div>
+                    <div class="right">
+                        <div class="mono" style="font-size:1.15rem;font-weight:800">@Fmt.N(schedule.LitresPerVisit, 0) л</div>
+                        <div class="tiny muted">@T["business.schedules.pervisit"]</div>
+                        <div class="tiny muted">≈ @Fmt.N(schedule.MonthlyLitres, 0) л/@T["common.month"]</div>
+                    </div>
+                </div>
+
+                <div class="promo-days" style="margin-top:.6rem">
+                    @for (var day = 0; day < 7; day++)
+                    {
+                        <span class="promo-day @(days.Contains(day) ? "" : "promo-locked")">@dayLabels[day]</span>
+                    }
+                    <span class="chip">
+                        <partial name="_Icons" model="@("clock")" />
+                        @schedule.WindowStart.ToString(@"hh\:mm")–@schedule.WindowEnd.ToString(@"hh\:mm")
+                    </span>
+                    @if (schedule.TriggerBelowPercent.HasValue)
+                    {
+                        <span class="chip">
+                            <partial name="_Icons" model="@("bolt")" />
+                            @T["business.schedules.trigger"] @Fmt.N(schedule.TriggerBelowPercent.Value, 0) %
+                        </span>
+                    }
+                </div>
+
+                <form asp-action="ToggleSchedule" method="post" style="margin-top:.6rem">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@schedule.Id" />
+                    <button class="btn btn-quiet btn-sm" type="submit">
+                        @(schedule.IsActive ? T["business.schedules.pause"] : T["business.schedules.resume"])
+                    </button>
+                </form>
+            </div>
+        }
+
+        @if (Model.Count == 0)
+        {
+            <div class="card center">
+                <h3>@T["business.schedules.empty"]</h3>
+                <p class="muted small">@T["business.schedules.empty.detail"]</p>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <h2>@T["business.schedules.add"]</h2>
+
+        <form asp-action="SaveSchedule" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="0" />
+            <input type="hidden" name="BusinessAccountId" value="@(account?.Id ?? 0)" />
+
+            <div class="form-grid">
+                <div>
+                    <label>@T["business.schedules.name"]</label>
+                    <input name="Title" required />
+                </div>
+                <div>
+                    <label>@T["business.schedules.kind"]</label>
+                    <select name="Kind">
+                        @foreach (var kind in Enum.GetValues<ScheduleKind>())
+                        {
+                            <option value="@kind">@T["schedulekind." + kind.ToString().ToLowerInvariant()]</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["business.frequency"]</label>
+                    <select name="Frequency">
+                        @foreach (var frequency in Enum.GetValues<DeliveryFrequency>())
+                        {
+                            <option value="@frequency">@T["contract.freq." + frequency.ToString().ToLowerInvariant()]</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["station.fuel"]</label>
+                    <select name="FuelTypeId">
+                        @foreach (var fuel in fuels)
+                        {
+                            <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["business.fleet.site"]</label>
+                    <select name="ConstructionSiteId">
+                        <option value="">—</option>
+                        @foreach (var site in sites)
+                        {
+                            <option value="@site.Id">@site.Name</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["business.schedules.pervisit"]</label>
+                    <input type="number" name="LitresPerVisit" step="50" min="0" value="500" />
+                </div>
+                <div>
+                    <label>@T["business.schedules.windowstart"]</label>
+                    <input type="number" name="WindowStartHour" min="0" max="23" value="22" />
+                </div>
+                <div>
+                    <label>@T["business.schedules.windowend"]</label>
+                    <input type="number" name="WindowEndHour" min="0" max="23" value="2" />
+                </div>
+                <div>
+                    <label>@T["order.address"]</label>
+                    <input name="Address" value="@(account?.Address ?? "")" />
+                </div>
+                <div>
+                    <label>@T["station.city"]</label>
+                    <input name="City" value="@(account?.City ?? "Скопје")" />
+                </div>
+                <div>
+                    <label>@T["map.lat"]</label>
+                    <input type="number" name="Latitude" step="0.000001" value="41.998100" />
+                </div>
+                <div>
+                    <label>@T["map.lng"]</label>
+                    <input type="number" name="Longitude" step="0.000001" value="21.425400" />
+                </div>
+                <div>
+                    <label>@T["business.schedules.trigger"] (%)</label>
+                    <input type="number" name="TriggerBelowPercent" min="0" max="100" step="1" />
+                </div>
+            </div>
+
+            <div style="margin-top:.7rem">
+                <label>@T["business.schedules.days"]</label>
+                <div class="promo-days">
+                    @for (var day = 0; day < 7; day++)
+                    {
+                        <label class="check tiny">
+                            <input type="checkbox" name="Days" value="@day" checked="@(day is 1 or 3 or 5)" />
+                            @dayLabels[day]
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-sm" type="submit" style="margin-top:.8rem">@T["common.save"]</button>
+        </form>
+    </div>
+</div>

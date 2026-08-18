@@ -1,0 +1,101 @@
+@model List<Station>
+@{
+    ViewData["Title"] = T["admin.stations.title"];
+    int page = ViewBag.Page ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    var query = ViewBag.Query as string;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.stations.title"]</h1>
+            <p class="muted small">@T["admin.stations.subtitle"]</p>
+        </div>
+        <form method="get" class="flex">
+            <input type="search" name="q" value="@query" placeholder="@T["stations.filter.searchph"]" />
+            <button class="btn btn-ghost btn-sm" type="submit">@T["common.apply"]</button>
+        </form>
+
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["stations.col.name"]</th>
+                <th>@T["stations.filter.brand"]</th>
+                <th>@T["stations.col.city"]</th>
+                <th class="num">@T["station.location"]</th>
+                <th>@T["prices.col.source"]</th>
+                <th>@T["common.status"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var station in Model)
+            {
+                <tr>
+                    <td>
+                        <a asp-controller="Stations" asp-action="Details" asp-route-id="@station.Id">@station.Name</a>
+                        <div class="small muted">@station.Address</div>
+                    </td>
+                    <td>
+                        @if (station.Brand is not null)
+                        {
+                            <span class="badge badge-brand" style="background:@station.Brand.ColorHex">@station.Brand.Name</span>
+                        }
+                    </td>
+                    <td>@station.City</td>
+                    <td class="num small mono">@Fmt.N(station.Latitude, 4), @Fmt.N(station.Longitude, 4)</td>
+                    <td><span class="badge">@station.Source</span></td>
+                    <td>
+                        @if (station.IsVerified)
+                        {
+                            <span class="badge badge-ok">@T["station.verified"]</span>
+                        }
+                        @if (!station.IsActive)
+                        {
+                            <span class="badge badge-err">@T["admin.inactive"]</span>
+                        }
+                    </td>
+                    <td class="num">
+                        <div class="flex">
+                            <form asp-action="VerifyStation" asp-route-id="@station.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-ghost btn-sm" type="submit">@T["admin.verify"]</button>
+                            </form>
+                            <form asp-action="ToggleStation" asp-route-id="@station.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-ghost btn-sm" type="submit">@(station.IsActive ? T["admin.disable"] : T["admin.enable"])</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="pager">
+            @for (var p = Math.Max(1, page - 5); p <= Math.Min(totalPages, page + 5); p++)
+            {
+                if (p == page)
+                {
+                    <span class="current">@p</span>
+                }
+                else
+                {
+                    <a asp-action="Stations" asp-route-page="@p" asp-route-q="@query">@p</a>
+                }
+            }
+        </div>
+    }
+</div>

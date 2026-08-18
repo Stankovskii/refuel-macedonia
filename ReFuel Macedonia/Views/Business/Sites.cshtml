@@ -1,0 +1,158 @@
+@model List<ConstructionSite>
+@{
+    ViewData["Title"] = T["business.sites.title"];
+    var account = ViewBag.Account as BusinessAccount;
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Fleet" asp-route-accountId="@account?.Id">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["business.tab.fleet"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("excavator")" /> @T["business.sites.eyebrow"]</span>
+            <h1>@T["business.sites.title"]</h1>
+            <p class="muted small">@T["business.sites.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            <a asp-action="Index" asp-route-accountId="@account?.Id">@T["business.tab.overview"]</a>
+            <a asp-action="Fleet" asp-route-accountId="@account?.Id">@T["business.tab.fleet"]</a>
+            <a class="active" asp-action="Sites" asp-route-accountId="@account?.Id">@T["business.tab.sites"]</a>
+            <a asp-action="Schedules" asp-route-accountId="@account?.Id">@T["business.tab.schedules"]</a>
+            <a asp-action="Savings">@T["business.tab.savings"]</a>
+        </div>
+    </div>
+
+    <div class="grid grid-2 section">
+        @foreach (var site in Model)
+        {
+            <div class="card site-card">
+                <div class="spread">
+                    <div>
+                        <h3>@site.Name</h3>
+                        <p class="small muted" style="margin:0">@site.Address, @site.City</p>
+                    </div>
+                    <span class="badge @(site.IsActive ? "badge-ok" : "badge-warn")">
+                        @(site.IsActive ? T["common.active"] : T["common.inactive"])
+                    </span>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="stat-strip">
+                    <div><span>@T["business.sites.weekly"]</span><strong>@Fmt.N(site.WeeklyConsumptionLitres, 0) л</strong></div>
+                    <div><span>@T["business.sites.monthly"]</span><strong>@Fmt.N(site.MonthlyConsumptionLitres, 0) л</strong></div>
+                    <div><span>@T["business.sites.machines"]</span><strong>@site.Machines.Count</strong></div>
+                    <div><span>@T["business.sites.access"]</span><strong>@site.AccessFrom.ToString(@"hh\:mm")–@site.AccessTo.ToString(@"hh\:mm")</strong></div>
+                </div>
+
+                @if (site.Machines.Count > 0)
+                {
+                    <div class="chips" style="margin-top:.6rem">
+                        @foreach (var machine in site.Machines)
+                        {
+                            <span class="chip">
+                                <partial name="_Icons" model="@machine.KindIcon" /> @machine.Name
+                            </span>
+                        }
+                    </div>
+                }
+
+                <p class="tiny muted" style="margin-top:.5rem">
+                    @site.ContactPerson · @site.ContactPhone
+                    @if (!string.IsNullOrWhiteSpace(site.Notes))
+                    {
+                        <br />@site.Notes
+                    }
+                </p>
+
+                <form asp-action="ToggleSite" method="post" style="margin-top:.5rem">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@site.Id" />
+                    <button class="btn btn-quiet btn-sm" type="submit">
+                        @(site.IsActive ? T["business.sites.deactivate"] : T["business.sites.activate"])
+                    </button>
+                </form>
+            </div>
+        }
+
+        @if (Model.Count == 0)
+        {
+            <div class="card center">
+                <h3>@T["business.sites.empty"]</h3>
+                <p class="muted small">@T["business.sites.empty.detail"]</p>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <h2>@T["business.sites.add"]</h2>
+
+        <form asp-action="SaveSite" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="0" />
+            <input type="hidden" name="BusinessAccountId" value="@(account?.Id ?? 0)" />
+
+            <div class="form-grid">
+                <div>
+                    <label>@T["business.sites.name"]</label>
+                    <input name="Name" required />
+                </div>
+                <div>
+                    <label>@T["order.address"]</label>
+                    <input name="Address" />
+                </div>
+                <div>
+                    <label>@T["station.city"]</label>
+                    <input name="City" value="@(account?.City ?? "Скопје")" />
+                </div>
+                <div>
+                    <label>@T["station.fuel"]</label>
+                    <select name="PrimaryFuelTypeId">
+                        @foreach (var fuel in fuels)
+                        {
+                            <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["business.sites.weekly"]</label>
+                    <input type="number" name="WeeklyConsumptionLitres" step="100" min="0" value="1000" />
+                </div>
+                <div>
+                    <label>@T["business.contact"]</label>
+                    <input name="ContactPerson" />
+                </div>
+                <div>
+                    <label>@T["order.phone"]</label>
+                    <input name="ContactPhone" />
+                </div>
+                <div>
+                    <label>@T["business.sites.accessfrom"]</label>
+                    <input type="number" name="AccessFromHour" min="0" max="23" value="6" />
+                </div>
+                <div>
+                    <label>@T["business.sites.accessto"]</label>
+                    <input type="number" name="AccessToHour" min="0" max="23" value="18" />
+                </div>
+                <div>
+                    <label>@T["map.lat"]</label>
+                    <input type="number" name="Latitude" step="0.000001" value="41.998100" />
+                </div>
+                <div>
+                    <label>@T["map.lng"]</label>
+                    <input type="number" name="Longitude" step="0.000001" value="21.425400" />
+                </div>
+            </div>
+
+            <div style="margin-top:.7rem">
+                <label>@T["common.notes"]</label>
+                <input name="Notes" />
+            </div>
+
+            <button class="btn btn-primary btn-sm" type="submit" style="margin-top:.8rem">@T["common.save"]</button>
+        </form>
+    </div>
+</div>

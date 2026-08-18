@@ -1,0 +1,140 @@
+@model List<TankerVm>
+@{
+    ViewData["Title"] = T["dispatch.tankers"];
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["dispatch.title"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("tank")" /> @T["dispatch.tankers.eyebrow"]</span>
+            <h1>@T["dispatch.tankers"]</h1>
+            <p class="muted small">@T["dispatch.tankers.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="card section">
+        <div class="spread">
+            <div>
+                <h3>@T["dispatch.iot.title"]</h3>
+                <p class="muted small" style="margin:0">@T["dispatch.iot.subtitle"]</p>
+                <code class="mono small">POST /api/iot/tankers/{id}/telemetry</code>
+            </div>
+            @if (User.IsInRole("Administrator"))
+            {
+                <form asp-action="SimulateTick" method="post">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-ghost btn-sm" type="submit">
+                        <partial name="_Icons" model="@("bolt")" /> @T["dispatch.simulate"]
+                    </button>
+                </form>
+            }
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        @foreach (var item in Model)
+        {
+            var tanker = item.Tanker;
+            var state = tanker.IsInMaintenance ? "stale" : (tanker.TelemetryIsFresh ? "live" : "");
+
+            <div class="card">
+                <div class="tanker-card">
+                    <span class="avatar-mini">@tanker.Initials</span>
+                    <div>
+                        <h3 style="margin-bottom:.15rem">@tanker.Code</h3>
+                        <p class="small muted" style="margin:0">
+                            @tanker.DriverName · @tanker.TruckModel · <span class="mono">@tanker.PlateNumber</span>
+                        </p>
+                        <div class="flex" style="gap:.4rem;margin-top:.4rem">
+                            @if (!string.IsNullOrEmpty(item.ZoneName))
+                            {
+                                <span class="zone-chip"><i style="background:@item.ZoneColor"></i>@item.ZoneName</span>
+                            }
+                            <span class="badge @(tanker.IsInMaintenance ? "badge-warn" : "badge-ok")">
+                                @(tanker.IsInMaintenance ? T["dispatch.maintenance"] : T["dispatch.inservice"])
+                            </span>
+                            @if (tanker.PumpActive)
+                            {
+                                <span class="badge badge-info">@T["dispatch.pumping"]</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="right nowrap">
+                        <span class="telemetry-dot @state"></span>
+                        <div class="tiny muted">
+                            @(tanker.LastTelemetryUtc.HasValue ? Fmt.LocalTime(tanker.LastTelemetryUtc.Value, "HH:mm:ss") : "—")
+                        </div>
+                        <div class="mono" style="font-weight:800">@Fmt.N(tanker.LoadedLitres, 0) / @Fmt.N(tanker.CompartmentCapacityLitres, 0) л</div>
+                        <div class="tiny muted">@Fmt.N(tanker.LoadPercent, 0) % · @Fmt.N(tanker.OdometerKm, 0) km</div>
+                    </div>
+                </div>
+
+                <div class="compartments">
+                    @foreach (var compartment in item.Compartments)
+                    {
+                        <div class="compartment">
+                            <div class="cap">#@compartment.Number · @(compartment.FuelType?.Code ?? "—")</div>
+                            <div class="lit">@Fmt.N(compartment.CurrentLitres, 0) л</div>
+                            <div class="bar"><span style="width:@Fmt.Plain(Math.Clamp(compartment.FillPercent, 0, 100), 0)%"></span></div>
+                            <form asp-action="SetCompartment" method="post" style="margin-top:.35rem">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@compartment.Id" />
+                                <input type="number" name="litres" step="10" min="0" max="@Fmt.Plain(compartment.CapacityLitres, 0)"
+                                       value="@Fmt.Plain(compartment.CurrentLitres, 0)" style="width:100%" />
+                                <select name="fuelTypeId" style="width:100%;margin-top:.25rem">
+                                    @foreach (var fuel in fuels)
+                                    {
+                                        <option value="@fuel.Id" selected="@(fuel.Id == compartment.FuelTypeId)">@fuel.Code</option>
+                                    }
+                                </select>
+                                <button class="btn btn-quiet btn-sm btn-block" type="submit" style="margin-top:.25rem">@T["common.save"]</button>
+                            </form>
+                        </div>
+                    }
+
+                    @if (item.Compartments.Count == 0)
+                    {
+                        <p class="small muted">@T["dispatch.nocompartments"]</p>
+                    }
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="stat-strip">
+                    <div><span>@T["dispatch.openorders"]</span><strong>@item.OpenOrders</strong></div>
+                    <div><span>@T["dispatch.assignedlitres"]</span><strong>@Fmt.N(item.AssignedLitres, 0) л</strong></div>
+                    <div><span>@T["dispatch.speed"]</span><strong>@Fmt.N(tanker.SpeedKph, 0) km/h</strong></div>
+                    <div>
+                        <span>@T["dispatch.maintenancedue"]</span>
+                        <strong>@(tanker.MaintenanceDueOn.HasValue ? tanker.MaintenanceDueOn.Value.ToString("dd.MM.yyyy") : "—")</strong>
+                    </div>
+                    <div>
+                        <span>@T["dispatch.insurance"]</span>
+                        <strong>@(tanker.InsuranceValidUntil.HasValue ? tanker.InsuranceValidUntil.Value.ToString("dd.MM.yyyy") : "—")</strong>
+                    </div>
+                </div>
+
+                <div class="flex" style="margin-top:.7rem">
+                    <form asp-action="Refill" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@tanker.Id" />
+                        <button class="btn btn-steel btn-sm" type="submit">@T["dispatch.refill"]</button>
+                    </form>
+                    <form asp-action="ToggleMaintenance" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@tanker.Id" />
+                        <button class="btn btn-quiet btn-sm" type="submit">
+                            @(tanker.IsInMaintenance ? T["dispatch.backinservice"] : T["dispatch.sendtomaintenance"])
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+</div>

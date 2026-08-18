@@ -1,0 +1,147 @@
+@model List<BusinessAccount>
+@{
+    ViewData["Title"] = T["admin.contracts.title"];
+    var deliveries = ViewBag.Deliveries as List<ContractDelivery> ?? new List<ContractDelivery>();
+    var invoices = ViewBag.Invoices as List<Invoice> ?? new List<Invoice>();
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("building")" /> B2B</span>
+            <h1>@T["admin.contracts.title"]</h1>
+            <p class="muted small">@T["admin.contracts.subtitle"]</p>
+        </div>
+        <form asp-action="GenerateDeliveries" method="post">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-primary btn-sm" type="submit">@T["admin.contracts.generate"]</button>
+        </form>
+
+        <partial name="_AdminTabs" />
+    </div>
+
+    <section class="section">
+        <div class="grid grid-2">
+            @foreach (var account in Model)
+            {
+                <div class="card card-hover">
+                    <div class="spread">
+                        <div>
+                            <h3>@account.CompanyName</h3>
+                            <p class="small muted" style="margin:0">
+                                <span class="mono">@account.TaxNumber</span> · @account.City · @account.Industry
+                            </p>
+                        </div>
+                        <span class="badge @(account.IsActive ? "badge-ok" : "badge-err")">
+                            @(account.IsActive ? T["admin.promo.live"] : T["admin.inactive"])
+                        </span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    @foreach (var contract in account.Contracts)
+                    {
+                        <div class="station-row">
+                            <span class="badge mono">@contract.ContractNumber</span>
+                            <div class="station-main">
+                                <strong><a asp-controller="Business" asp-action="Contract" asp-route-id="@contract.Id">@contract.Title</a></strong>
+                                <span>@T["contract.freq." + contract.Frequency.ToString().ToLowerInvariant()] · @Fmt.Litres(contract.CommittedLitresPerMonth) / @T["business.kpi.month"]</span>
+                            </div>
+                            <span class="badge @(contract.IsRunning ? "badge-ok" : "badge-warn")">@contract.DaysRemaining @T["common.days"]</span>
+                        </div>
+                    }
+
+                    <div class="flex" style="margin-top:.7rem">
+                        <a class="btn btn-ghost btn-sm" asp-controller="Business" asp-action="Index" asp-route-accountId="@account.Id">
+                            @T["common.details"]
+                        </a>
+                        <span class="small muted">@account.ContactPerson · @account.ContactPhone</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>@T["admin.contracts.deliveries"]</h2>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>@T["orders.col.ref"]</th>
+                    <th>@T["prices.col.date"]</th>
+                    <th>@T["business.eyebrow"]</th>
+                    <th>@T["business.asset"]</th>
+                    <th>@T["track.driver.title"]</th>
+                    <th class="num">@T["business.planned"]</th>
+                    <th class="num">@T["business.delivered"]</th>
+                    <th>@T["common.status"]</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var delivery in deliveries)
+                {
+                    <tr>
+                        <td class="mono small">@delivery.Reference</td>
+                        <td class="small">@Fmt.LocalTime(delivery.ScheduledForUtc, "dd.MM HH:mm")</td>
+                        <td class="small">@delivery.SupplyContract?.BusinessAccount?.CompanyName</td>
+                        <td class="small">@delivery.ContractAsset?.Name</td>
+                        <td class="small">@delivery.DeliveryVehicle?.DriverName</td>
+                        <td class="num">@Fmt.Litres(delivery.PlannedLitres)</td>
+                        <td class="num">@Fmt.Litres(delivery.DeliveredLitres)</td>
+                        <td><span class="badge @Fmt.StatusClass(delivery.Status)">@T[Fmt.StatusKey(delivery.Status)]</span></td>
+                        <td class="num">
+                            @if (delivery.Proof is not null)
+                            {
+                                <a class="btn btn-ghost btn-sm" asp-controller="Business" asp-action="Proof" asp-route-id="@delivery.Id">@T["business.proof"]</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>@T["business.invoices"]</h2>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>@T["invoice.title"]</th>
+                    <th>@T["business.eyebrow"]</th>
+                    <th>@T["invoice.period"]</th>
+                    <th class="num">@T["invoice.subtotal"]</th>
+                    <th class="num">@T["invoice.vat"]</th>
+                    <th class="num">@T["invoice.total"]</th>
+                    <th>@T["common.status"]</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var invoice in invoices)
+                {
+                    <tr>
+                        <td class="mono small"><a asp-controller="Business" asp-action="Invoice" asp-route-id="@invoice.Id">@invoice.InvoiceNumber</a></td>
+                        <td class="small">@invoice.BusinessAccount?.CompanyName</td>
+                        <td class="small">@invoice.PeriodStart.ToString("dd.MM") – @invoice.PeriodEnd.ToString("dd.MM.yyyy")</td>
+                        <td class="num">@Fmt.Money(invoice.Subtotal, 0)</td>
+                        <td class="num">@Fmt.Money(invoice.VatAmount, 0)</td>
+                        <td class="num"><strong>@Fmt.Money(invoice.Total, 0)</strong></td>
+                        <td>
+                            <span class="badge @(invoice.Status == InvoiceStatus.Paid ? "badge-ok" : invoice.IsOverdue ? "badge-err" : "badge-warn")">
+                                @T["invoice.status." + invoice.Status.ToString().ToLowerInvariant()]
+                            </span>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

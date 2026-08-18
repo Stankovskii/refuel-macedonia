@@ -1,0 +1,187 @@
+@model PricesPageVm
+@{
+    ViewData["Title"] = T["prices.title"];
+    var series = Model.Series.FirstOrDefault();
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["prices.title"]</h1>
+            <p class="muted small">@T["prices.subtitle"] · @T["prices.updated"] @Fmt.LocalTime(Model.LastUpdateUtc)</p>
+        </div>
+    </div>
+
+    <section class="section">
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>@T["prices.col.fuel"]</th>
+                    <th class="num">@T["prices.col.max"]</th>
+                    <th class="num">@T["prices.col.change"]</th>
+                    <th class="num">@T["price.min"]</th>
+                    <th class="num">@T["price.avg"]</th>
+                    <th class="num">@T["price.max"]</th>
+                    <th>@T["prices.col.cheapest"]</th>
+                    <th class="num">@T["prices.col.forecast"]</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Board)
+                {
+                    <tr>
+                        <td>
+                            <span class="station-dot inline" style="background:@row.Color;width:9px;height:9px;border-radius:50%"></span>
+                            <strong>@row.Name</strong>
+                            @if (!row.IsRegulated)
+                            {
+                                <span class="badge badge-warn">@T["prices.unregulated"]</span>
+                            }
+                            <div class="small muted">@T["price.effective"] @Fmt.LocalTime(row.EffectiveFrom, "dd.MM.yyyy")</div>
+                        </td>
+                        <td class="num"><strong>@Fmt.N(row.Price, 2)</strong></td>
+                        <td class="num @Fmt.TrendClass(row.Trend)">@Fmt.TrendArrow(row.Trend) @Fmt.Change(row.Change)</td>
+                        <td class="num">@Fmt.N(row.MarketMin, 2)</td>
+                        <td class="num">@Fmt.N(row.MarketAvg, 2)</td>
+                        <td class="num">@Fmt.N(row.MarketMax, 2)</td>
+                        <td class="small">
+                            @if (row.CheapestStationId.HasValue)
+                            {
+                                <a asp-controller="Stations" asp-action="Details" asp-route-id="@row.CheapestStationId">@row.CheapestStationName</a>
+                                <span class="muted">· @row.CheapestStationCity</span>
+                            }
+                        </td>
+                        <td class="num">
+                            @if (row.PredictedNext > 0)
+                            {
+                                <span class="@Fmt.TrendClass(row.PredictedTrend)">@Fmt.TrendArrow(row.PredictedTrend)</span>
+                                <strong>@Fmt.N(row.PredictedNext, 2)</strong>
+                            }
+                            else
+                            {
+                                <span class="muted">-</span>
+                            }
+                        </td>
+                        <td class="num">
+                            <a class="btn btn-ghost btn-sm" asp-action="Index" asp-route-fuelTypeId="@row.FuelTypeId">@T["common.chart"]</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <div class="spread">
+                <h2>@T["prices.history.title"] @(series?.Name)</h2>
+                <div class="pill-tabs">
+                    @{
+                        var monthsRaw = ViewContext.HttpContext.Request.Query["months"].ToString();
+                        if (!int.TryParse(monthsRaw, out var activeMonths)) { activeMonths = 12; }
+                    }
+                    @foreach (var option in new[] { (3, "3M"), (6, "6M"), (12, "1Y"), (24, "2Y"), (36, "3Y") })
+                    {
+                        <a class="@(activeMonths == option.Item1 ? "active" : "")"
+                           asp-action="Index" asp-route-fuelTypeId="@Model.SelectedFuelId" asp-route-months="@option.Item1">@option.Item2</a>
+                    }
+                </div>
+            </div>
+            <div class="chart-box"><canvas id="chart-prices"></canvas></div>
+            @if (series is not null)
+            {
+                <div class="flex small soft" style="margin-top:.6rem">
+                    <span>@T["price.min"]: <strong>@Fmt.N(series.Min, 2)</strong></span>
+                    <span>@T["price.avg"]: <strong>@Fmt.N(series.Avg, 2)</strong></span>
+                    <span>@T["price.max"]: <strong>@Fmt.N(series.Max, 2)</strong></span>
+                    <span class="muted">@series.Points.Count @T["prices.points"]</span>
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h2>@T["prices.brands.title"]</h2>
+            <p class="muted small">@T["prices.brands.subtitle"]</p>
+            <div class="chart-box chart-sm"><canvas id="chart-brands"></canvas></div>
+
+            <div class="divider"></div>
+
+            <h3>@T["prices.cities.title"]</h3>
+            <div class="table-wrap" style="border:0">
+                <table class="data">
+                    <thead><tr><th>@T["stations.col.city"]</th><th class="num">@T["price.avg"]</th><th class="num">@T["price.min"]</th><th class="num">#</th></tr></thead>
+                    <tbody>
+                    @foreach (var city in Model.ByCity.OrderBy(c => c.AveragePrice).Take(12))
+                    {
+                        <tr>
+                            <td>@city.City</td>
+                            <td class="num">@Fmt.N(city.AveragePrice, 2)</td>
+                            <td class="num">@Fmt.N(city.MinPrice, 2)</td>
+                            <td class="num muted">@city.StationCount</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>@T["prices.decisions.title"]</h2>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>@T["prices.col.date"]</th><th class="num">@T["prices.col.max"]</th><th class="num">@T["prices.col.change"]</th><th>@T["prices.col.source"]</th></tr></thead>
+                <tbody>
+                @if (series is not null)
+                {
+                    foreach (var point in series.Points.OrderByDescending(p => p.Date).Take(20))
+                    {
+                        <tr>
+                            <td>@Fmt.LocalTime(point.Date, "dd.MM.yyyy")</td>
+                            <td class="num"><strong>@Fmt.N(point.Price, 2)</strong></td>
+                            <td class="num @(point.Change > 0 ? "trend-up" : point.Change < 0 ? "trend-down" : "trend-flat")">@Fmt.Change(point.Change)</td>
+                            <td class="small">
+                                @if (point.IsOfficial)
+                                {
+                                    <span class="badge badge-ok">@T["prices.official"]</span>
+                                    <span class="muted">@point.Reference</span>
+                                }
+                                else
+                                {
+                                    <span class="badge">@T["prices.reconstructed"]</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var points = @Html.Raw(Json.Serialize((series?.Points ?? new List<PriceHistoryPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+            var forecast = @Html.Raw(Json.Serialize((series?.Forecast ?? new List<PriceHistoryPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+
+            var datasets = [{ label: @Json.Serialize(series?.Name ?? ""), color: @Json.Serialize(series?.Color ?? "#0F766E"), points: points, fill: true }];
+            if (forecast.length) {
+                datasets.push({ label: @Json.Serialize(T["prices.forecast"]), color: "#F59E0B", points: points.slice(-1).concat(forecast), dashed: true });
+            }
+
+            ReFuel.lineChart("chart-prices", datasets);
+
+            var brands = @Html.Raw(Json.Serialize(Model.ByBrand.Take(12)));
+            ReFuel.barChart("chart-brands",
+                brands.map(function (b) { return b.brand; }),
+                brands.map(function (b) { return b.averagePrice; }),
+                brands.map(function (b) { return b.color; }),
+                @Json.Serialize(T["price.avg"]));
+        })();
+    </script>
+}

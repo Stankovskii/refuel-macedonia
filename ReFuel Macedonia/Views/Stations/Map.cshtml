@@ -1,0 +1,86 @@
+@{
+    ViewData["Title"] = T["map.title"];
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    var cities = ViewBag.Cities as List<string> ?? new List<string>();
+    var brands = ViewBag.Brands as List<Brand> ?? new List<Brand>();
+    int selectedFuel = ViewBag.SelectedFuel ?? 0;
+    var selectedCity = ViewBag.SelectedCity as string;
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["map.title"]</h1>
+            <p class="muted small">@T["map.subtitle"]</p>
+        </div>
+        <div class="flex">
+            <select id="sel-fuel">
+                @foreach (var fuel in fuels)
+                {
+                    <option value="@fuel.Id" selected="@(fuel.Id == selectedFuel)">@fuel.LocalizedName(T.Culture)</option>
+                }
+            </select>
+            <select id="sel-city">
+                <option value="">@T["common.allcities"]</option>
+                @foreach (var city in cities)
+                {
+                    <option value="@city" selected="@(city == selectedCity)">@city</option>
+                }
+            </select>
+            <select id="sel-brand">
+                <option value="">@T["common.allbrands"]</option>
+                @foreach (var brand in brands)
+                {
+                    <option value="@brand.Id">@brand.Name</option>
+                }
+            </select>
+            <button class="btn btn-ghost btn-sm" id="btn-locate-map">@T["stations.nearme"]</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="map-legend">
+        <span id="map-count" class="badge badge-info">…</span>
+        <span>@T["map.legend.price"]</span>
+        <span>@T["map.legend.attribution"]</span>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var map = ReFuel.createStationMap("map", { zoom: 8 });
+
+            function reload() {
+                var fuel = document.getElementById("sel-fuel").value;
+                var city = document.getElementById("sel-city").value;
+                var brand = document.getElementById("sel-brand").value;
+
+                var url = "/api/v1/stations/map?fuelTypeId=" + encodeURIComponent(fuel);
+                if (city) url += "&city=" + encodeURIComponent(city);
+                if (brand) url += "&brandId=" + encodeURIComponent(brand);
+
+                ReFuel.loadStations(map, url, "/Stations/Details/", function (data) {
+                    document.getElementById("map-count").textContent = data.length;
+                });
+            }
+
+            ["sel-fuel", "sel-city", "sel-brand"].forEach(function (id) {
+                document.getElementById(id).addEventListener("change", reload);
+            });
+
+            document.getElementById("btn-locate-map").addEventListener("click", function (e) {
+                e.preventDefault();
+                ReFuel.locate(function (position) {
+                    if (!position) return;
+                    map.setView([position.lat, position.lng], 13);
+                    L.circleMarker([position.lat, position.lng], { radius: 8, color: "#1D4ED8", fillColor: "#3B82F6", fillOpacity: .8 })
+                        .addTo(map).bindPopup("@T["map.you"]").openPopup();
+                });
+            });
+
+            reload();
+        })();
+    </script>
+}

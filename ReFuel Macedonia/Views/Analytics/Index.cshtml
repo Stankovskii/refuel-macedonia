@@ -1,0 +1,222 @@
+@model AnalyticsVm
+@{
+    ViewData["Title"] = T["ai.title"];
+    var series = Model.Series.FirstOrDefault();
+    var selectedForecast = Model.Forecasts.FirstOrDefault(f => f.FuelTypeId == Model.SelectedFuelId) ?? Model.Forecasts.FirstOrDefault();
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["ai.title"]</h1>
+            <p class="muted small">@T["ai.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            @foreach (var fuel in Model.Fuels.Where(f => f.IsRegulated || f.Code == "LPG"))
+            {
+                <a class="@(fuel.Id == Model.SelectedFuelId ? "active" : "")" asp-action="Index" asp-route-fuelTypeId="@fuel.Id">@fuel.LocalizedName(T.Culture)</a>
+            }
+        </div>
+    </div>
+
+    <section class="section">
+        <h2>@T["ai.forecast.title"]</h2>
+        <p class="muted small">@T["ai.forecast.subtitle"]</p>
+
+        <div class="grid grid-4">
+            @foreach (var forecast in Model.Forecasts)
+            {
+                var next = forecast.Points.FirstOrDefault();
+                <div class="card card-tight" style="border-left:4px solid @forecast.Color">
+                    <div class="fuel-name small">@forecast.Fuel</div>
+                    <div class="flex">
+                        <span class="station-price">@Fmt.N(forecast.CurrentPrice, 2)</span>
+                        <span class="@Fmt.TrendClass(forecast.Trend)">@Fmt.TrendArrow(forecast.Trend)</span>
+                        @if (next is not null)
+                        {
+                            <span class="soft">→ @Fmt.N(next.Price, 2)</span>
+                        }
+                    </div>
+                    @if (next is not null)
+                    {
+                        <div class="small muted">@T["ai.interval"]: @Fmt.N(next.Lower, 2) – @Fmt.N(next.Upper, 2)</div>
+                    }
+                    <div class="score-bar"><span style="width:@Fmt.N(forecast.Confidence * 100, 0)%"></span></div>
+                    <div class="confidence">@T["ai.confidence"]: @Fmt.N(forecast.Confidence * 100, 0) % · MAE @Fmt.N(forecast.BacktestMae, 2)</div>
+                    <div class="small soft" style="margin-top:.35rem">@T[forecast.AdviceKey]</div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <h2>@T["ai.chart.title"] @(series?.Name)</h2>
+            <p class="muted small">@T["ai.chart.subtitle"] @(selectedForecast?.Model)</p>
+            <div class="chart-box"><canvas id="chart-forecast"></canvas></div>
+            @if (selectedForecast is not null)
+            {
+                <div class="flex small soft" style="margin-top:.6rem">
+                    <span>@T["ai.model"]: <strong>@selectedForecast.Model</strong></span>
+                    <span>MAE: <strong>@Fmt.N(selectedForecast.BacktestMae, 3)</strong></span>
+                    <span>MAPE: <strong>@Fmt.N(selectedForecast.BacktestMape, 2) %</strong></span>
+                    <span>@T["ai.confidence"]: <strong>@Fmt.N(selectedForecast.Confidence * 100, 0) %</strong></span>
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h2>@T["ai.calculator.title"]</h2>
+            <p class="muted small">@T["ai.calculator.subtitle"]</p>
+
+            <form method="get" class="stack">
+                <input type="hidden" name="fuelTypeId" value="@Model.SelectedFuelId" />
+                <div>
+                    <label>@T["ai.calc.km"]</label>
+                    <input type="number" name="monthlyKm" min="50" max="20000" value="@Fmt.Plain(Model.Calculator.MonthlyKm, 0)" />
+                </div>
+                <div>
+                    <label>@T["ai.calc.consumption"]</label>
+                    <input type="number" step="0.1" name="consumption" min="2" max="30" value="@Fmt.Plain(Model.Calculator.Consumption, 1)" />
+                </div>
+                <button class="btn btn-primary btn-block" type="submit">@T["common.calculate"]</button>
+            </form>
+
+            <div class="divider"></div>
+
+            <table class="data" style="font-size:.86rem">
+                <tbody>
+                <tr><td>@T["ai.calc.litres"]</td><td class="num">@Fmt.Litres(Model.Calculator.LitresPerMonth)</td></tr>
+                <tr><td>@T["ai.calc.avgprice"]</td><td class="num">@Fmt.N(Model.Calculator.AvgPrice, 2)</td></tr>
+                <tr><td>@T["ai.calc.bestprice"]</td><td class="num">@Fmt.N(Model.Calculator.BestPrice, 2)</td></tr>
+                <tr><td>@T["ai.calc.costavg"]</td><td class="num">@Fmt.Money(Model.Calculator.MonthlyCostAverage, 0)</td></tr>
+                <tr><td>@T["ai.calc.costbest"]</td><td class="num">@Fmt.Money(Model.Calculator.MonthlyCostBest, 0)</td></tr>
+                <tr class="trend-down"><td><strong>@T["ai.calc.monthly"]</strong></td><td class="num"><strong>@Fmt.Money(Model.Calculator.MonthlySaving, 0)</strong></td></tr>
+                <tr class="trend-down"><td><strong>@T["ai.calc.yearly"]</strong></td><td class="num"><strong>@Fmt.Money(Model.Calculator.YearlySaving, 0)</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <h2>@T["ai.reco.title"]</h2>
+                <p class="muted small">@T["ai.reco.method"]</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btn-here">@T["stations.nearme"]</button>
+        </div>
+
+        @if (Model.Recommendation is null || Model.Recommendation.Items.Count == 0)
+        {
+            <div class="alert alert-info">@T["ai.reco.hint"]</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@T["stations.col.name"]</th>
+                        <th class="num">@T["station.price"]</th>
+                        <th class="num">@T["stations.col.distance"]</th>
+                        <th class="num">@T["ai.detourcost"]</th>
+                        <th class="num">@T["ai.netsaving"]</th>
+                        <th>@T["ai.reasons"]</th>
+                        <th class="num">@T["ai.score"]</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @for (var i = 0; i < Model.Recommendation.Items.Count; i++)
+                    {
+                        var item = Model.Recommendation.Items[i];
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>
+                                <a asp-controller="Stations" asp-action="Details" asp-route-id="@item.Station.Id">@item.Station.Name</a>
+                                <div class="small muted">@item.Station.City</div>
+                            </td>
+                            <td class="num"><strong>@Fmt.N(item.Price, 2)</strong></td>
+                            <td class="num">@Fmt.Km(item.DistanceKm)</td>
+                            <td class="num muted">@Fmt.N(item.DetourCostMkd, 0)</td>
+                            <td class="num @(item.NetSaving > 0 ? "trend-down" : "trend-flat")">@Fmt.Money(item.NetSaving, 0)</td>
+                            <td>
+                                <div class="chips">
+                                    @foreach (var reason in item.Reasons)
+                                    {
+                                        <span class="reason">@T[reason]</span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="num">
+                                @Fmt.N(item.Score, 3)
+                                <div class="score-bar"><span style="width:@Fmt.N(Math.Min(1, item.Score) * 100, 0)%"></span></div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="small muted" style="margin-top:.6rem">
+                @T["ai.reco.params"]: @Fmt.N(Model.Recommendation.TankLitres, 0) L ·
+                @Fmt.N(Model.Recommendation.Consumption, 1) L/100km
+            </p>
+        }
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <h2>@T["prices.brands.title"]</h2>
+            <div class="chart-box chart-sm"><canvas id="chart-brands"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>@T["prices.cities.title"]</h2>
+            <div class="chart-box chart-sm"><canvas id="chart-cities"></canvas></div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var history = @Html.Raw(Json.Serialize((series?.Points ?? new List<PriceHistoryPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+            var forecast = @Html.Raw(Json.Serialize((selectedForecast?.Points ?? new List<ForecastPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+            var upper = @Html.Raw(Json.Serialize((selectedForecast?.Points ?? new List<ForecastPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Upper })));
+            var lower = @Html.Raw(Json.Serialize((selectedForecast?.Points ?? new List<ForecastPointVm>()).Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Lower })));
+
+            var datasets = [{ label: @Json.Serialize(series?.Name ?? ""), color: @Json.Serialize(series?.Color ?? "#0F766E"), points: history }];
+            if (forecast.length) {
+                var bridge = history.slice(-1);
+                datasets.push({ label: @Json.Serialize(T["ai.forecast.label"]), color: "#F59E0B", points: bridge.concat(forecast), dashed: true });
+                datasets.push({ label: @Json.Serialize(T["ai.upper"]), color: "#FCD34D", points: bridge.concat(upper), dashed: true });
+                datasets.push({ label: @Json.Serialize(T["ai.lower"]), color: "#FCD34D", points: bridge.concat(lower), dashed: true });
+            }
+
+            ReFuel.lineChart("chart-forecast", datasets);
+
+            var brands = @Html.Raw(Json.Serialize(Model.ByBrand.Take(12)));
+            ReFuel.barChart("chart-brands",
+                brands.map(function (b) { return b.brand; }),
+                brands.map(function (b) { return b.averagePrice; }),
+                brands.map(function (b) { return b.color; }));
+
+            var cities = @Html.Raw(Json.Serialize(Model.ByCity.OrderBy(c => c.AveragePrice).Take(12)));
+            ReFuel.barChart("chart-cities",
+                cities.map(function (c) { return c.city; }),
+                cities.map(function (c) { return c.averagePrice; }),
+                cities.map(function () { return "#0F766E"; }));
+
+            document.getElementById("btn-here").addEventListener("click", function () {
+                ReFuel.locate(function (position) {
+                    if (!position) return;
+                    var url = new URL(window.location.href);
+                    url.searchParams.set("lat", position.lat.toFixed(6));
+                    url.searchParams.set("lng", position.lng.toFixed(6));
+                    window.location.href = url.toString();
+                });
+            });
+        })();
+    </script>
+}

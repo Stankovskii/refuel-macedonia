@@ -1,0 +1,53 @@
+@model PriceReportVm
+@{
+    ViewData["Title"] = T["report.title"];
+}
+
+<div class="container">
+    <a class="back-link" asp-controller="Stations" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["common.back"]
+    </a>
+
+    <div class="auth-wrap">
+        <div class="card">
+            <h1>@T["report.title"]</h1>
+            <p class="muted small">@T["report.subtitle"] <strong>@Model.StationName</strong></p>
+
+            <form asp-action="Report" method="post" class="stack">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="StationId" />
+                <input type="hidden" asp-for="StationName" />
+
+                <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+                <div>
+                    <label asp-for="FuelTypeId">@T["station.fuel"]</label>
+                    <select asp-for="FuelTypeId">
+                        @foreach (var fuel in Model.Fuels)
+                        {
+                            <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label asp-for="Price">@T["report.price"]</label>
+                    <input asp-for="Price" type="number" step="0.01" min="10" max="400" />
+                </div>
+
+                <div>
+                    <label asp-for="Note">@T["report.note"]</label>
+                    <textarea asp-for="Note" maxlength="400"></textarea>
+                </div>
+
+                <p class="small muted">@T["report.disclaimer"]</p>
+
+                <button class="btn btn-primary btn-block" type="submit">@T["report.submit"]</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

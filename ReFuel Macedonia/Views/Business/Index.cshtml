@@ -1,0 +1,188 @@
+@model BusinessOverviewVm
+@{
+    ViewData["Title"] = Model.Account.CompanyName;
+    var accounts = ViewBag.Accounts as List<BusinessAccount> ?? new List<BusinessAccount>();
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("building")" /> @T["business.eyebrow"]</span>
+            <h1>@Model.Account.CompanyName</h1>
+            <p class="muted small">
+                @T["business.tax"]: <span class="mono">@Model.Account.TaxNumber</span> ·
+                @Model.Account.City · @Model.Account.ContactPerson
+            </p>
+        </div>
+
+        <div class="pill-tabs">
+            <a class="active" asp-action="Index" asp-route-accountId="@Model.Account.Id">@T["business.tab.overview"]</a>
+            <a asp-action="Fleet" asp-route-accountId="@Model.Account.Id">@T["business.tab.fleet"]</a>
+            <a asp-action="Sites" asp-route-accountId="@Model.Account.Id">@T["business.tab.sites"]</a>
+            <a asp-action="Schedules" asp-route-accountId="@Model.Account.Id">@T["business.tab.schedules"]</a>
+            <a asp-action="Savings">@T["business.tab.savings"]</a>
+        </div>
+    </div>
+
+    @if (accounts.Count > 1)
+    {
+        <form method="get" class="flex section">
+            <select name="accountId" onchange="this.form.submit()">
+                @foreach (var account in accounts)
+                {
+                    <option value="@account.Id" selected="@(account.Id == Model.Account.Id)">@account.CompanyName</option>
+                }
+            </select>
+        </form>
+    }
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><partial name="_Icons" model="@("fuel")" /><strong>@Fmt.Litres(Model.LitresThisMonth)</strong><span>@T["business.kpi.month"]</span></div>
+        <div class="card kpi"><partial name="_Icons" model="@("truck")" /><strong>@Model.DeliveriesCompleted</strong><span>@T["business.kpi.deliveries"]</span></div>
+        <div class="card kpi"><partial name="_Icons" model="@("wallet")" /><strong>@Fmt.Money(Model.SpendThisMonth, 0)</strong><span>@T["business.kpi.spend"]</span></div>
+        <div class="card kpi"><partial name="_Icons" model="@("sparkle")" /><strong>@Fmt.Money(Model.SavedByContract, 0)</strong><span>@T["business.kpi.saved"]</span></div>
+    </div>
+
+    @if (Model.OverdueCount > 0)
+    {
+        <div class="alert alert-warn">
+            <partial name="_Icons" model="@("alert")" />
+            <div>@T.Format("business.overdue", Model.OverdueCount, Fmt.Money(Model.OutstandingAmount, 0))</div>
+        </div>
+    }
+
+    <section class="section">
+        <h2>@T["business.contracts.title"]</h2>
+        <div class="grid grid-2">
+            @foreach (var contract in Model.Contracts)
+            {
+                <div class="card card-hover contract-card">
+                    <div class="spread">
+                        <div>
+                            <span class="badge @(contract.IsRunning ? "badge-ok" : "badge-warn")">@T["contract.status." + contract.Status.ToString().ToLowerInvariant()]</span>
+                            <span class="badge mono">@contract.ContractNumber</span>
+                        </div>
+                        <span class="badge badge-violet">@T["contract.freq." + contract.Frequency.ToString().ToLowerInvariant()]</span>
+                    </div>
+
+                    <h3 style="margin-top:.6rem">@contract.Title</h3>
+                    <p class="small soft">
+                        @contract.FuelType?.LocalizedName(T.Culture) ·
+                        @T["contract.discount"]: <strong>-@Fmt.N(contract.DiscountPerLitre, 2) @T["unit.perl"]</strong>
+                    </p>
+
+                    <div class="flex" style="margin:.6rem 0">
+                        @foreach (var group in contract.Assets.GroupBy(a => a.Kind))
+                        {
+                            <span class="asset-pill">
+                                <partial name="_Icons" model="@(group.First().KindIcon)" />
+                                @group.Count() @T["asset." + group.Key.ToString().ToLowerInvariant()]
+                            </span>
+                        }
+                    </div>
+
+                    <div class="small soft spread">
+                        <span>@T["contract.period"]: @contract.StartsOn.ToString("dd.MM.yyyy") – @contract.EndsOn.ToString("dd.MM.yyyy")</span>
+                        <span>@contract.DaysRemaining @T["common.days"]</span>
+                    </div>
+
+                    <div class="flex" style="margin-top:.8rem">
+                        <a class="btn btn-primary btn-sm" asp-action="Contract" asp-route-id="@contract.Id">@T["common.details"]</a>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <h2><partial name="_Icons" model="@("clock")" /> @T["business.upcoming"]</h2>
+            @if (Model.Upcoming.Count == 0)
+            {
+                <p class="small soft">@T["common.nodata"]</p>
+            }
+            else
+            {
+                <div class="table-wrap" style="border:0;box-shadow:none">
+                    <table class="data">
+                        <thead><tr><th>@T["prices.col.date"]</th><th>@T["business.asset"]</th><th class="num">@T["order.litres"]</th><th>@T["track.driver.title"]</th></tr></thead>
+                        <tbody>
+                        @foreach (var delivery in Model.Upcoming)
+                        {
+                            <tr>
+                                <td class="small">@Fmt.LocalTime(delivery.ScheduledForUtc, "dd.MM HH:mm")</td>
+                                <td class="small">@delivery.ContractAsset?.Name</td>
+                                <td class="num">@Fmt.Litres(delivery.PlannedLitres)</td>
+                                <td class="small">@delivery.DeliveryVehicle?.DriverName</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h2><partial name="_Icons" model="@("invoice")" /> @T["business.invoices"]</h2>
+            @if (Model.Invoices.Count == 0)
+            {
+                <p class="small soft">@T["common.nodata"]</p>
+            }
+            else
+            {
+                foreach (var invoice in Model.Invoices)
+                {
+                    <div class="station-row">
+                        <div class="station-main">
+                            <strong><a asp-action="Invoice" asp-route-id="@invoice.Id">@invoice.InvoiceNumber</a></strong>
+                            <span>@invoice.PeriodStart.ToString("dd.MM") – @invoice.PeriodEnd.ToString("dd.MM.yyyy")</span>
+                        </div>
+                        <div class="right">
+                            <div class="station-price">@Fmt.Money(invoice.Total, 0)</div>
+                            <span class="badge @(invoice.Status == InvoiceStatus.Paid ? "badge-ok" : invoice.IsOverdue ? "badge-err" : "badge-warn")">
+                                @T["invoice.status." + invoice.Status.ToString().ToLowerInvariant()]
+                            </span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <section class="section">
+        <h2><partial name="_Icons" model="@("check")" /> @T["business.recent"]</h2>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>@T["orders.col.ref"]</th>
+                    <th>@T["prices.col.date"]</th>
+                    <th>@T["business.asset"]</th>
+                    <th class="num">@T["business.delivered"]</th>
+                    <th class="num">@T["order.unitprice"]</th>
+                    <th class="num">@T["order.total"]</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var delivery in Model.Recent)
+                {
+                    <tr>
+                        <td class="mono small">@delivery.Reference</td>
+                        <td class="small">@Fmt.LocalTime(delivery.CompletedAtUtc ?? delivery.ScheduledForUtc)</td>
+                        <td class="small">@delivery.ContractAsset?.Name</td>
+                        <td class="num">@Fmt.Litres(delivery.DeliveredLitres)</td>
+                        <td class="num">@Fmt.N(delivery.UnitPrice, 2)</td>
+                        <td class="num"><strong>@Fmt.Money(delivery.LineTotal, 0)</strong></td>
+                        <td class="num">
+                            <a class="btn btn-ghost btn-sm" asp-action="Proof" asp-route-id="@delivery.Id">
+                                <partial name="_Icons" model="@("shield")" /> @T["business.proof"]
+                            </a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,59 @@
+@model PriceSeriesVm
+@{
+    ViewData["Title"] = T["prices.history.title"] + " · " + Model.Name;
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    int months = ViewBag.Months ?? 24;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["nav.prices"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["prices.history.title"]: @Model.Name</h1>
+            <p class="muted small">@Model.Points.Count @T["prices.points"] · @T["price.min"] @Fmt.N(Model.Min, 2) · @T["price.max"] @Fmt.N(Model.Max, 2)</p>
+        </div>
+        <div class="pill-tabs">
+            @foreach (var fuel in fuels)
+            {
+                <a class="@(fuel.Id == Model.FuelTypeId ? "active" : "")" asp-action="History" asp-route-fuelTypeId="@fuel.Id" asp-route-months="@months">@fuel.LocalizedName(T.Culture)</a>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="chart-box"><canvas id="chart-history"></canvas></div>
+    </div>
+
+    <div class="card section">
+        <div class="table-wrap" style="border:0">
+            <table class="data">
+                <thead><tr><th>@T["prices.col.date"]</th><th class="num">@T["prices.col.max"]</th><th class="num">@T["prices.col.change"]</th><th>@T["prices.col.source"]</th></tr></thead>
+                <tbody>
+                @foreach (var point in Model.Points.OrderByDescending(p => p.Date))
+                {
+                    <tr>
+                        <td>@Fmt.LocalTime(point.Date, "dd.MM.yyyy")</td>
+                        <td class="num">@Fmt.N(point.Price, 2)</td>
+                        <td class="num @(point.Change > 0 ? "trend-up" : point.Change < 0 ? "trend-down" : "trend-flat")">@Fmt.Change(point.Change)</td>
+                        <td class="small">@(point.IsOfficial ? T["prices.official"] : T["prices.reconstructed"])</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        ReFuel.lineChart("chart-history", [{
+            label: @Json.Serialize(Model.Name),
+            color: @Json.Serialize(Model.Color),
+            fill: true,
+            points: @Html.Raw(Json.Serialize(Model.Points.Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })))
+        }]);
+    </script>
+}

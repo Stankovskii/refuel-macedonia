@@ -1,0 +1,208 @@
+@model ConditionsVm
+@{
+    ViewData["Title"] = T["conditions.title"];
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("cloud-sun")" /> @T["conditions.eyebrow"]</span>
+            <h1>@T["conditions.title"]</h1>
+            <p class="muted small">
+                @T["conditions.subtitle"]
+                @if (Model.LastUpdatedUtc.HasValue)
+                {
+                    <span>· @T["prices.updated"] @Fmt.LocalTime(Model.LastUpdatedUtc.Value)</span>
+                }
+            </p>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="btn-here"><partial name="_Icons" model="@("pin")" /> @T["stations.nearme"]</button>
+    </div>
+
+    @if (Model.Local is not null)
+    {
+        <section class="section">
+            <div class="card card-dark" style="padding:1.5rem">
+                <div class="spread">
+                    <div class="weather-card">
+                        <partial name="_Icons" model="@(Model.Local.Icon)" />
+                        <div>
+                            <div class="eta-big">@Fmt.Plain(Model.Local.TemperatureC, 0)°</div>
+                            <div class="small">@Model.Local.City · @T[Model.Local.DescriptionKey]</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-4" style="flex:1;min-width:280px">
+                        <div class="kpi"><strong>@Fmt.Plain(Model.Local.FeelsLikeC, 0)°</strong><span>@T["weather.feelslike"]</span></div>
+                        <div class="kpi"><strong>@Fmt.Plain(Model.Local.WindKmh, 0)</strong><span>@T["weather.wind"]</span></div>
+                        <div class="kpi"><strong>@Model.Local.Humidity %</strong><span>@T["weather.humidity"]</span></div>
+                        <div class="kpi"><strong>@Fmt.Plain(Model.Local.PrecipitationMm, 1)</strong><span>@T["weather.precip"]</span></div>
+                    </div>
+                </div>
+                <div class="alert @(Model.Local.IsHazardous ? "alert-warn" : "alert-ok")" style="margin-bottom:0">
+                    <partial name="_Icons" model="@(Model.Local.IsHazardous ? "alert" : "check")" />
+                    <div>@T[Model.Local.DrivingAdviceKey]</div>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="section">
+        <h2>@T["conditions.weather.title"]</h2>
+        <p class="muted small">@T["conditions.weather.subtitle"]</p>
+
+        @if (Model.Weather.Count == 0)
+        {
+            <div class="alert alert-info"><partial name="_Icons" model="@("alert")" /><div>@T["conditions.nodata"]</div></div>
+        }
+        else
+        {
+            <div class="weather-grid">
+                @foreach (var w in Model.Weather)
+                {
+                    <div class="weather-tile @(w.IsHazardous ? "hazard" : "")">
+                        <div class="spread">
+                            <span class="city">@w.City</span>
+                            <partial name="_Icons" model="@(w.Icon)" />
+                        </div>
+                        <div class="weather-temp">@Fmt.Plain(w.TemperatureC, 0)°</div>
+                        <div class="range">@Fmt.Plain(w.MinTemperatureC, 0)° / @Fmt.Plain(w.MaxTemperatureC, 0)° · @Fmt.Plain(w.WindKmh, 0) km/h</div>
+                        <div class="tiny muted">@T[w.DescriptionKey]</div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="split section">
+        <div class="card">
+            <div class="spread">
+                <h2><partial name="_Icons" model="@("road")" /> @T["conditions.roads.title"]</h2>
+                <span class="badge @(Model.Roads.Any(r => r.Status != RoadStatus.Normal) ? "badge-warn" : "badge-ok")">
+                    @Model.Roads.Count(r => r.Status != RoadStatus.Normal) @T["conditions.alerts"]
+                </span>
+            </div>
+            <p class="muted small">@T["conditions.roads.subtitle"]</p>
+
+            @if (Model.Roads.Count == 0)
+            {
+                <p class="small soft">@T["road.allclear"]</p>
+            }
+            else
+            {
+                foreach (var road in Model.Roads)
+                {
+                    <div class="station-row">
+                        <span class="badge @road.StatusClass">@T[road.StatusKey]</span>
+                        <div class="station-main">
+                            <strong>@road.Road</strong>
+                            <span>@road.Description</span>
+                        </div>
+                        <span class="tiny muted nowrap">@road.Region</span>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="card">
+            <h2><partial name="_Icons" model="@("pin")" /> @T["conditions.borders.title"]</h2>
+            <p class="muted small">@T["conditions.borders.subtitle"]</p>
+
+            <div class="table-wrap" style="border:0;box-shadow:none">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["conditions.border"]</th>
+                        <th>@T["conditions.country"]</th>
+                        <th class="num">@T["conditions.entry"]</th>
+                        <th class="num">@T["conditions.exit"]</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var border in Model.Borders)
+                    {
+                        <tr>
+                            <td><strong>@border.Name</strong></td>
+                            <td class="small soft">@border.Country</td>
+                            <td class="num"><span class="badge @border.WaitClass">@border.EntryWaitMinutes min</span></td>
+                            <td class="num"><span class="badge @border.WaitClass">@border.ExitWaitMinutes min</span></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>@T["conditions.map.title"]</h2>
+        <div id="map-conditions" class="map-box map-md"></div>
+        <div class="map-legend">
+            <span><span class="dot" style="background:#12A150"></span> @T["road.status.normal"]</span>
+            <span><span class="dot" style="background:#F2A20C"></span> @T["road.status.caution"]</span>
+            <span><span class="dot" style="background:#2E9BFF"></span> @T["road.status.restricted"]</span>
+            <span><span class="dot" style="background:#E5484D"></span> @T["road.status.closed"]</span>
+            <span class="muted">@T["footer.source.amsm"]</span>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var weather = @Html.Raw(Json.Serialize(Model.Weather.Select(w => new {
+                w.City, w.Latitude, w.Longitude, w.TemperatureC, hazard = w.IsHazardous
+            })));
+
+            var roads = @Html.Raw(Json.Serialize(Model.Roads
+                .Where(r => r.Latitude.HasValue && r.Longitude.HasValue)
+                .Select(r => new { r.Road, lat = r.Latitude, lng = r.Longitude, status = (int)r.Status })));
+
+            var borders = @Html.Raw(Json.Serialize(Model.Borders.Select(b => new {
+                b.Name, b.Latitude, b.Longitude, b.EntryWaitMinutes, b.ExitWaitMinutes
+            })));
+
+            var map = L.map("map-conditions").setView([ReFuel.country.lat, ReFuel.country.lng], 8);
+            ReFuel.tileLayer().addTo(map);
+
+            var statusColors = ["#12A150", "#F2A20C", "#2E9BFF", "#E5484D"];
+
+            weather.forEach(function (w) {
+                L.marker([w.latitude, w.longitude], {
+                    icon: L.divIcon({
+                        className: "wx",
+                        html: '<div style="background:' + (w.hazard ? "#E5484D" : "#2E9BFF") + ';color:#fff;border:2px solid #fff;' +
+                              'border-radius:9px;padding:2px 7px;font:700 11px Manrope,sans-serif;white-space:nowrap;' +
+                              'box-shadow:0 3px 10px rgba(0,0,0,.3)">' + Math.round(w.temperatureC) + '&deg;</div>',
+                        iconSize: [10, 10], iconAnchor: [18, 12]
+                    })
+                }).addTo(map).bindPopup("<b>" + ReFuel.escape(w.city) + "</b><br>" + w.temperatureC + " &deg;C");
+            });
+
+            roads.forEach(function (r) {
+                L.circleMarker([r.lat, r.lng], {
+                    radius: 9, color: statusColors[r.status] || "#12A150",
+                    fillColor: statusColors[r.status] || "#12A150", fillOpacity: .8, weight: 2
+                }).addTo(map).bindPopup("<b>" + ReFuel.escape(r.road) + "</b>");
+            });
+
+            borders.forEach(function (b) {
+                var wait = Math.max(b.entryWaitMinutes, b.exitWaitMinutes);
+                L.circleMarker([b.latitude, b.longitude], {
+                    radius: 8, color: "#0A1220", fillColor: wait > 45 ? "#E5484D" : wait > 15 ? "#F2A20C" : "#12A150",
+                    fillOpacity: .95, weight: 2
+                }).addTo(map).bindPopup("<b>" + ReFuel.escape(b.name) + "</b><br>" +
+                    b.entryWaitMinutes + " / " + b.exitWaitMinutes + " min");
+            });
+
+            document.getElementById("btn-here").addEventListener("click", function () {
+                ReFuel.locate(function (p) {
+                    if (!p) return;
+                    var url = new URL(window.location.href);
+                    url.searchParams.set("lat", p.lat.toFixed(5));
+                    url.searchParams.set("lng", p.lng.toFixed(5));
+                    window.location.href = url.toString();
+                });
+            });
+        })();
+    </script>
+}

@@ -1,0 +1,305 @@
+@model CreateOrderVm
+@{
+    ViewData["Title"] = T["order.create.title"];
+    var quote = Model.Quote;
+    var breakdown = quote?.Breakdown;
+
+    var scheduledPct = breakdown?.ScheduledDiscountPercent ?? 0;
+    var expressSurcharge = breakdown?.TierEmergencySurcharge ?? 0m;
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["order.create.title"]</h1>
+            <p class="muted small">@T["order.create.subtitle"]</p>
+        </div>
+    </div>
+
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert alert-warn" style="margin-bottom:1rem">
+                <partial name="_Icons" model="@("alert")" />
+                <div>
+                    <strong>@T["order.error.check"]</strong>
+                    <ul style="margin:.3rem 0 0 1rem;padding:0">
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).Distinct())
+                        {
+                            <li>@T[error]</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
+
+        <div class="split">
+            <div class="stack">
+
+                <div class="card">
+                    <h2>@T["order.section.what"]</h2>
+                    <div class="form-grid">
+                        <div>
+                            <label asp-for="FuelTypeId">@T["station.fuel"]</label>
+                            <select asp-for="FuelTypeId">
+                                @foreach (var fuel in Model.Fuels)
+                                {
+                                    <option value="@fuel.Id">@fuel.LocalizedName(T.Culture)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label asp-for="Litres">@T["order.litres"]</label>
+                            <input asp-for="Litres" type="number" step="0.5" min="10" max="120" />
+                        </div>
+                        <div style="grid-column:1 / -1">
+                            <label>@T["order.type"]</label>
+                            <div class="delivery-options">
+                                <label class="delivery-option">
+                                    <input type="radio" name="Type" value="@((int)OrderType.Standard)" checked="@(Model.Type == OrderType.Standard)" />
+                                    <span>
+                                        <strong>@T["order.type.standard"]</strong>
+                                        <em>@T["order.option.standard.detail"]</em>
+                                    </span>
+                                </label>
+                                <label class="delivery-option">
+                                    <input type="radio" name="Type" value="@((int)OrderType.Scheduled)" checked="@(Model.Type == OrderType.Scheduled)" />
+                                    <span>
+                                        <strong>@T["order.type.scheduled"]</strong>
+                                        <em>
+                                            @if (scheduledPct > 0)
+                                            {
+                                                @T.Format("order.option.scheduled.detail", scheduledPct)
+                                            }
+                                            else
+                                            {
+                                                @T["order.option.scheduled.detail.plain"]
+                                            }
+                                        </em>
+                                    </span>
+                                </label>
+                                <label class="delivery-option">
+                                    <input type="radio" name="Type" value="@((int)OrderType.Emergency)" checked="@(Model.Type == OrderType.Emergency)" />
+                                    <span>
+                                        <strong>@T["order.type.emergency"]</strong>
+                                        <em>
+                                            @if (expressSurcharge > 0)
+                                            {
+                                                @T.Format("order.option.emergency.detail", Fmt.N(expressSurcharge, 0))
+                                            }
+                                            else
+                                            {
+                                                @T["order.option.emergency.detail.plain"]
+                                            }
+                                        </em>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <label asp-for="ScheduledFor">@T["order.scheduledfor"]</label>
+                            <input asp-for="ScheduledFor" type="datetime-local" />
+                        </div>
+                        <div>
+                            <label asp-for="VehicleId">@T["order.vehicle"]</label>
+                            <select asp-for="VehicleId">
+                                <option value="">@T["common.none"]</option>
+                                @foreach (var vehicle in Model.Vehicles)
+                                {
+                                    <option value="@vehicle.Id">@vehicle.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label asp-for="PaymentMethod">@T["order.payment"]</label>
+                            <select asp-for="PaymentMethod">
+                                <option value="@((int)PaymentMethod.Cash)">@T["order.pay.cash"]</option>
+                                <option value="@((int)PaymentMethod.Card)">@T["order.pay.card"]</option>
+                                <option value="@((int)PaymentMethod.BankTransfer)">@T["order.pay.transfer"]</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>@T["order.section.where"]</h2>
+                    <div class="form-grid">
+                        <div style="grid-column:span 2">
+                            <label asp-for="DeliveryAddress">@T["order.address"] <span class="req">*</span></label>
+                            <input asp-for="DeliveryAddress" placeholder="@T["order.address.placeholder"]" required />
+                        </div>
+                        <div>
+                            <label asp-for="DeliveryCity">@T["station.city"] <span class="req">*</span></label>
+                            <input asp-for="DeliveryCity" placeholder="@T["order.city.placeholder"]" required />
+                        </div>
+                        <div>
+                            <label asp-for="ContactPhone">@T["order.phone"] <span class="req">*</span></label>
+                            <input asp-for="ContactPhone" type="tel" placeholder="+389 7X XXX XXX" required />
+                        </div>
+                    </div>
+
+                    <div class="flex" style="margin:.7rem 0">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btn-locate" data-nogeo="@T["stations.nogeo"]">@T["order.uselocation"]</button>
+                        <span class="small muted" id="pick-hint">@T["order.mapinstruction"] <span class="req">*</span></span>
+                    </div>
+
+                    <div id="map-pick" class="map-box map-sm @(Model.HasLocation ? "" : "map-unpicked")"></div>
+
+                    <input asp-for="DeliveryLatitude" type="hidden" id="DeliveryLatitude" />
+                    <input asp-for="DeliveryLongitude" type="hidden" id="DeliveryLongitude" />
+
+                    <div style="margin-top:.8rem">
+                        <label asp-for="Notes">@T["order.notes"]</label>
+                        <textarea asp-for="Notes" maxlength="500"></textarea>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>@T["order.section.station"]</h2>
+                    <p class="muted small">@T["order.station.hint"]</p>
+
+                    <div class="stack">
+                        <label class="check">
+                            <input type="radio" name="StationId" value="" checked="@(Model.StationId is null)" />
+                            <span>@T["order.station.auto"]</span>
+                        </label>
+
+                        @foreach (var station in Model.SuggestedStations)
+                        {
+                            <label class="check">
+                                <input type="radio" name="StationId" value="@station.Id" checked="@(Model.StationId == station.Id)" />
+                                <span>
+                                    <strong>@station.Name</strong>
+                                    <span class="muted small">· @station.City · @Fmt.Km(station.DistanceKm)</span>
+                                    @if (station.Price.HasValue)
+                                    {
+                                        <strong class="soft"> @Fmt.N(station.Price.Value, 2)</strong>
+                                    }
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <h2>@T["order.summary"]</h2>
+
+                    @if (quote is null || quote.UnitPrice <= 0)
+                    {
+                        <p class="muted small">@T["order.summary.empty"]</p>
+                    }
+                    else
+                    {
+                        <table class="data" style="font-size:.86rem">
+                            <tbody>
+                            @if (breakdown is not null && breakdown.PumpPricePerLitre > 0)
+                            {
+                                <tr>
+                                    <td>@T["pricing.pump"]</td>
+                                    <td class="num muted">@Fmt.Money(breakdown.PumpPricePerLitre)</td>
+                                </tr>
+                            }
+                            <tr>
+                                <td><strong>@T["order.unitprice"]</strong></td>
+                                <td class="num">
+                                    <strong>@Fmt.Money(quote.UnitPrice)</strong>
+                                    @if (breakdown is not null && breakdown.CustomerDiscountPerLitre > 0)
+                                    {
+                                        <span class="tiny gain">−@Fmt.N(breakdown.CustomerDiscountPerLitre, 2)</span>
+                                    }
+                                </td>
+                            </tr>
+                            <tr><td>@T["order.subtotal"] (@Fmt.Litres(Model.Litres))</td><td class="num">@Fmt.Money(quote.FuelSubtotal, 0)</td></tr>
+                            <tr>
+                                <td>
+                                    @T["order.deliveryfee"]
+                                    @if (breakdown is not null && breakdown.ScheduledFeeDiscount > 0)
+                                    {
+                                        <span class="tiny gain">@T.Format("pricing.line.delivery.scheduled", breakdown.ScheduledDiscountPercent)</span>
+                                    }
+                                </td>
+                                <td class="num">@Fmt.Money(quote.DeliveryFee, 0)</td>
+                            </tr>
+                            @if (quote.EmergencySurcharge > 0)
+                            {
+                                <tr><td>@T["order.surcharge"]</td><td class="num">@Fmt.Money(quote.EmergencySurcharge, 0)</td></tr>
+                            }
+                            @if (quote.DiscountAmount > 0)
+                            {
+                                <tr class="trend-down"><td>@T["order.discount"] @quote.PromotionTitle</td><td class="num">-@Fmt.Money(quote.DiscountAmount, 0)</td></tr>
+                            }
+                            <tr><td><strong>@T["order.total"]</strong></td><td class="num"><strong>@Fmt.Money(quote.Total, 0)</strong></td></tr>
+                            </tbody>
+                        </table>
+
+                        <div class="flex small soft" style="margin-top:.6rem">
+                            <span>@T["order.distance"]: <strong>@Fmt.Km(quote.DistanceKm)</strong></span>
+                            <span>@T["order.eta"]: <strong>@Fmt.Minutes(quote.EtaMinutes)</strong></span>
+                            <span>@T["order.points"]: <strong>+@quote.PointsEarned</strong></span>
+                        </div>
+
+                        @if (quote.Breakdown is not null)
+                        {
+                            <partial name="_PriceExplanation" model="quote.Breakdown" />
+                        }
+
+                        @if (!string.IsNullOrEmpty(quote.StationName))
+                        {
+                            <p class="small muted" style="margin-top:.5rem">@T["order.sourcedfrom"]: <strong>@quote.StationName</strong></p>
+                        }
+
+                        @foreach (var warning in quote.Warnings)
+                        {
+                            <div class="alert alert-warn small">@T[warning]</div>
+                        }
+
+                        @if (!quote.PromotionApplied && !string.IsNullOrEmpty(quote.PromotionMessage))
+                        {
+                            <p class="small muted">@T[quote.PromotionMessage]</p>
+                        }
+                    }
+
+                    <div style="margin-top:.9rem">
+                        <label asp-for="PromotionCode">@T["order.promocode"]</label>
+                        <input asp-for="PromotionCode" placeholder="WELCOME" />
+                    </div>
+
+                    <div class="flex" style="margin-top:.9rem">
+                        <button type="submit" name="action" value="quote" class="btn btn-ghost btn-block" formnovalidate>@T["order.recalculate"]</button>
+                    </div>
+                    <div style="margin-top:.5rem">
+                        <button type="submit" name="action" value="place" class="btn btn-primary btn-block">@T["order.place"]</button>
+                    </div>
+                    <p class="tiny muted" style="margin:.6rem 0 0">@T["order.legal.note"]</p>
+                </div>
+
+                @if (Model.AvailablePromotions.Count > 0)
+                {
+                    <div class="card">
+                        <h3>@T["order.promos"]</h3>
+                        @foreach (var promo in Model.AvailablePromotions)
+                        {
+                            <div class="station-row">
+                                <div class="station-main">
+                                    <strong>@promo.Title(T.Culture)</strong>
+                                    <span>@promo.Code</span>
+                                </div>
+                            </div>
+                        }
+                        <a class="small" asp-controller="Promotions" asp-action="Index">@T["common.all"]</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        ReFuel.initAddressPicker("map-pick", "DeliveryLatitude", "DeliveryLongitude");
+    </script>
+}

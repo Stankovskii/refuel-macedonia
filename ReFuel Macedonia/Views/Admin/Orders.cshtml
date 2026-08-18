@@ -1,0 +1,91 @@
+@model List<Order>
+@{
+    ViewData["Title"] = T["admin.orders.title"];
+    int page = ViewBag.Page ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    OrderStatus? status = ViewBag.Status;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.orders.title"]</h1>
+            <p class="muted small">@T["admin.orders.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            <a class="@(status is null ? "active" : "")" asp-action="Orders">@T["common.all"]</a>
+            @foreach (var s in Enum.GetValues<OrderStatus>())
+            {
+                <a class="@(status == s ? "active" : "")" asp-action="Orders" asp-route-status="@s">@T[Fmt.StatusKey(s)]</a>
+            }
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["orders.col.ref"]</th>
+                <th>@T["prices.col.date"]</th>
+                <th>@T["common.user"]</th>
+                <th>@T["order.address"]</th>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["order.litres"]</th>
+                <th class="num">@T["order.total"]</th>
+                <th>@T["order.type"]</th>
+                <th>@T["common.status"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var order in Model)
+            {
+                <tr>
+                    <td class="mono small">@order.Reference</td>
+                    <td class="small">@Fmt.LocalTime(order.CreatedAtUtc)</td>
+                    <td class="small">@order.User?.FullName</td>
+                    <td class="small muted">@order.DeliveryAddress, @order.DeliveryCity</td>
+                    <td class="small">@order.FuelType?.LocalizedName(T.Culture)</td>
+                    <td class="num">@Fmt.Litres(order.Litres)</td>
+                    <td class="num"><strong>@Fmt.Money(order.Total, 0)</strong></td>
+                    <td><span class="badge">@T[Fmt.OrderTypeKey(order.Type)]</span></td>
+                    <td><span class="badge @Fmt.StatusClass(order.Status)">@T[Fmt.StatusKey(order.Status)]</span></td>
+                    <td>
+                        <form asp-action="SetStatus" asp-route-id="@order.Id" method="post" class="flex">
+                            @Html.AntiForgeryToken()
+                            <select name="status" style="min-width:120px">
+                                @foreach (var s in Enum.GetValues<OrderStatus>())
+                                {
+                                    <option value="@s" selected="@(s == order.Status)">@T[Fmt.StatusKey(s)]</option>
+                                }
+                            </select>
+                            <button class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="pager">
+            @for (var p = Math.Max(1, page - 5); p <= Math.Min(totalPages, page + 5); p++)
+            {
+                if (p == page)
+                {
+                    <span class="current">@p</span>
+                }
+                else
+                {
+                    <a asp-action="Orders" asp-route-page="@p" asp-route-status="@status">@p</a>
+                }
+            }
+        </div>
+    }
+</div>

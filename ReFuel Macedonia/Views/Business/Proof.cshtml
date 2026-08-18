@@ -1,0 +1,163 @@
+@model DeliveryProof
+@{
+    var delivery = Model.ContractDelivery;
+    var contract = delivery?.SupplyContract;
+    ViewData["Title"] = Model.ProofNumber;
+
+    var verifyUrl = Url.Action("Verify", "Business", new { proof = Model.ProofNumber, h = Model.VerificationHash }, Context.Request.Scheme);
+}
+
+<div class="container">
+    <div class="no-print flex" style="justify-content:space-between;margin-bottom:1rem">
+        <a class="back-link" asp-action="Contract" asp-route-id="@(contract?.Id ?? 0)" style="margin:0">
+            <partial name="_Icons" model="@("arrow-left")" /> @T["common.back"]
+        </a>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">
+            <partial name="_Icons" model="@("download")" /> @T["common.print"]
+        </button>
+    </div>
+
+    <div class="doc-sheet">
+        <div class="doc-head">
+            <div>
+                <div class="flex" style="gap:.55rem">
+                    <partial name="_BrandMark" model="@("")" />
+                    <div>
+                        <div class="doc-title">ReFuel Macedonia</div>
+                        <div class="doc-meta">@T["proof.company"]</div>
+                    </div>
+                </div>
+            </div>
+            <div class="right">
+                <div class="doc-title">@T["proof.title"]</div>
+                <div class="doc-meta mono">@Model.ProofNumber</div>
+                <div class="doc-meta">@Fmt.LocalTime(Model.IssuedAtUtc)</div>
+            </div>
+        </div>
+
+        <div class="doc-parties">
+            <div>
+                <div class="upper">@T["proof.customer"]</div>
+                <strong>@contract?.BusinessAccount?.CompanyName</strong>
+                <div class="small soft">
+                    @contract?.BusinessAccount?.Address<br />
+                    @contract?.BusinessAccount?.City<br />
+                    @T["business.tax"]: <span class="mono">@contract?.BusinessAccount?.TaxNumber</span>
+                </div>
+            </div>
+            <div>
+                <div class="upper">@T["proof.contract"]</div>
+                <strong class="mono">@contract?.ContractNumber</strong>
+                <div class="small soft">
+                    @contract?.Title<br />
+                    @T["business.asset"]: @delivery?.ContractAsset?.Name<br />
+                    <span class="mono">@delivery?.ContractAsset?.Identifier</span>
+                </div>
+            </div>
+            <div>
+                <div class="upper">@T["proof.delivery"]</div>
+                <strong class="mono">@delivery?.Reference</strong>
+                <div class="small soft">
+                    @T["proof.scheduled"]: @Fmt.LocalTime(delivery?.ScheduledForUtc ?? Model.IssuedAtUtc)<br />
+                    @T["proof.completed"]: @Fmt.LocalTime(delivery?.CompletedAtUtc ?? Model.IssuedAtUtc)
+                </div>
+            </div>
+        </div>
+
+        <table class="data" style="border:1px solid var(--line);border-radius:12px;overflow:hidden">
+            <thead>
+            <tr>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["proof.meterstart"]</th>
+                <th class="num">@T["proof.meterend"]</th>
+                <th class="num">@T["proof.litres"]</th>
+                <th class="num">@T["order.unitprice"]</th>
+                <th class="num">@T["order.total"]</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>@contract?.FuelType?.LocalizedName(T.Culture)</td>
+                <td class="num mono">@Fmt.Plain(Model.MeterStart, 1)</td>
+                <td class="num mono">@Fmt.Plain(Model.MeterEnd, 1)</td>
+                <td class="num"><strong>@Fmt.Litres(Model.LitresDelivered)</strong></td>
+                <td class="num">@Fmt.N(delivery?.UnitPrice ?? 0, 2)</td>
+                <td class="num"><strong>@Fmt.Money(delivery?.LineTotal ?? 0, 2)</strong></td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="grid grid-3" style="margin-top:1.4rem">
+            <div>
+                <div class="upper">@T["proof.driver"]</div>
+                <div class="signature-line"></div>
+                <strong>@Model.DriverName</strong>
+                <div class="small soft">@delivery?.DeliveryVehicle?.TruckModel · <span class="mono">@delivery?.DeliveryVehicle?.PlateNumber</span></div>
+            </div>
+            <div>
+                <div class="upper">@T["proof.receivedby"]</div>
+                @if (Model.HasSignatureImage)
+                {
+                    <img class="sig-image" src="@Model.SignatureData" alt="@T["proof.signed"]" />
+                }
+                else
+                {
+                    <div class="signature-line"></div>
+                }
+                <strong>@Model.ReceivedBy</strong>
+                <div class="small soft">@T["proof.signed"] · @T["proof.signature.simple"]</div>
+            </div>
+            <div class="center">
+                <div class="stamp">
+                    <partial name="_Icons" model="@("check")" />
+                    @T["proof.verified"]
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="grid grid-2">
+            <div>
+                <div class="upper">@T["proof.location"]</div>
+                <div class="mono small">@Fmt.Plain(Model.Latitude, 5), @Fmt.Plain(Model.Longitude, 5)</div>
+                <div id="map-proof" class="map-box map-sm" style="height:200px;margin-top:.5rem"></div>
+            </div>
+            <div>
+                <div class="upper">@T["proof.hash"]</div>
+                <div class="hash-box">@Model.VerificationHash</div>
+                <p class="small soft" style="margin-top:.5rem">@T["proof.hash.explain"]</p>
+
+                <div class="flex" style="gap:1rem;align-items:flex-start;margin-top:.8rem">
+                    <div class="qr-box" id="qr-proof" title="@T["proof.qr.title"]"></div>
+                    <div class="small soft">
+                        <strong style="color:var(--ink)">@T["proof.qr.title"]</strong><br />
+                        @T["proof.qr.explain"]<br />
+                        <a class="mono tiny" href="@verifyUrl">@verifyUrl</a>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Remarks))
+                {
+                    <div class="upper" style="margin-top:.7rem">@T["proof.remarks"]</div>
+                    <p class="small soft">@Model.Remarks</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        (function () {
+            ReFuel.qr("qr-proof", @Json.Serialize(verifyUrl), 128);
+
+            var lat = @Json.Serialize(Model.Latitude), lng = @Json.Serialize(Model.Longitude);
+            if (!lat || !lng) return;
+            var map = L.map("map-proof", { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView([lat, lng], 14);
+            ReFuel.tileLayer().addTo(map);
+            L.marker([lat, lng]).addTo(map);
+        })();
+    </script>
+}

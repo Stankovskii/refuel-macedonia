@@ -1,0 +1,184 @@
+@model EconomicsResultVm
+@{
+    ViewData["Title"] = T["admin.economics.title"];
+    var settings = ViewBag.Settings as PricingSettings ?? new PricingSettings();
+    var input = Model.Input;
+    var positive = Model.OperatingResult >= 0;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("chart")" /> @T["admin.economics.eyebrow"]</span>
+            <h1>@T["admin.economics.title"]</h1>
+            <p class="muted small">@T["admin.economics.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="alert alert-warn section">
+        <partial name="_Icons" model="@("alert")" />
+        <div>@T["admin.economics.disclaimer"]</div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["admin.economics.inputs"]</h2>
+            <p class="muted small">@T["admin.economics.inputs.subtitle"]</p>
+
+            <form method="get" class="form-grid">
+                <div>
+                    <label>@T["admin.economics.perday"]</label>
+                    <input type="number" name="DeliveriesPerDay" min="0" step="1" value="@Fmt.Plain(input.DeliveriesPerDay, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.avglitres"]</label>
+                    <input type="number" name="AverageLitresPerDelivery" min="0" step="1" value="@Fmt.Plain(input.AverageLitresPerDelivery, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.avgdistance"]</label>
+                    <input type="number" name="AverageDistanceKm" min="0" step="0.5" value="@Fmt.Plain(input.AverageDistanceKm, 1)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.margin"]</label>
+                    <input type="number" name="AverageMarginPerLitre" min="0" step="0.1" value="@Fmt.Plain(input.AverageMarginPerLitre, 2)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.fee"]</label>
+                    <input type="number" name="AverageDeliveryFee" min="0" step="10" value="@Fmt.Plain(input.AverageDeliveryFee, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.days"]</label>
+                    <input type="number" name="WorkingDaysPerMonth" min="1" max="31" step="1" value="@Fmt.Plain(input.WorkingDaysPerMonth, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.fixedcosts"]</label>
+                    <input type="number" name="MonthlyFixedCosts" min="0" step="10000" value="@Fmt.Plain(input.MonthlyFixedCosts, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.tankers"]</label>
+                    <input type="number" name="Tankers" min="1" step="1" value="@Fmt.Plain(input.Tankers, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.economics.groupedshare"]</label>
+                    <input type="number" name="GroupedSharePercent" min="0" max="100" step="5" value="@Fmt.Plain(input.GroupedSharePercent, 0)" />
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary btn-block" type="submit">@T["admin.economics.calculate"]</button>
+                </div>
+            </form>
+
+            <div class="divider"></div>
+
+            <h3>@T["admin.economics.assumptions"]</h3>
+            <ul class="small muted" style="padding-left:1.1rem;margin:0">
+                @foreach (var assumption in Model.Assumptions)
+                {
+                    <li>@assumption</li>
+                }
+            </ul>
+        </div>
+
+        <div class="stack">
+            <div class="card card-dark">
+                <span class="upper" style="color:var(--brand-400)">@T["admin.economics.contribution"]</span>
+                <h2 style="color:#fff">@Fmt.Money(Model.MonthlyGrossContribution, 0)</h2>
+                <p class="muted small">@T["admin.economics.contribution.detail"]</p>
+
+                <div class="divider"></div>
+
+                <table class="data" style="font-size:.86rem">
+                    <tbody>
+                    <tr>
+                        <td>@T["admin.economics.grossfuelmargin"]</td>
+                        <td class="num mono">@Fmt.N(Model.MonthlyGrossFuelMargin, 0)</td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.deliveryrevenue"]</td>
+                        <td class="num mono">@Fmt.N(Model.MonthlyDeliveryRevenue, 0)</td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.deliverycost"]</td>
+                        <td class="num mono">−@Fmt.N(Model.MonthlyDeliveryCost, 0)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>@T["admin.economics.grosscontribution"]</strong></td>
+                        <td class="num mono"><strong>@Fmt.N(Model.MonthlyGrossContribution, 0)</strong></td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.fixed"]</td>
+                        <td class="num mono">−@Fmt.N(Model.MonthlyFixedCosts, 0)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>@T["admin.economics.operating"]</strong></td>
+                        <td class="num mono">
+                            <strong class="@(positive ? "gain" : "loss")">@Fmt.N(Model.OperatingResult, 0)</strong>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+
+                <p class="tiny muted" style="margin-top:.6rem">@T["pricing.internal.notprofit"]</p>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card kpi">
+                    <strong>@Fmt.N(Model.BreakEvenDeliveriesPerMonth, 0)</strong>
+                    <span>@T["admin.economics.breakeven.month"]</span>
+                </div>
+                <div class="card kpi">
+                    <strong>@Fmt.N(Model.BreakEvenDeliveriesPerDay, 1)</strong>
+                    <span>@T["admin.economics.breakeven.day"]</span>
+                </div>
+                <div class="card kpi">
+                    <strong>@Fmt.Money(Model.ContributionPerDelivery, 0)</strong>
+                    <span>@T["admin.economics.perdelivery"]</span>
+                </div>
+                <div class="card kpi">
+                    <strong>@Fmt.N(Model.DeliveriesPerTankerPerDay, 1)</strong>
+                    <span>@T["admin.economics.pertanker"]</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>@T["admin.economics.volume"]</h3>
+                <table class="data" style="font-size:.86rem">
+                    <tbody>
+                    <tr>
+                        <td>@T["admin.economics.monthlydeliveries"]</td>
+                        <td class="num mono">@Fmt.N(Model.MonthlyDeliveries, 0)</td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.monthlylitres"]</td>
+                        <td class="num mono">@Fmt.N(Model.MonthlyLitres, 0)</td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.costperdelivery"]</td>
+                        <td class="num mono">@Fmt.N(Model.CostPerDelivery, 0)</td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.costmodel"]</td>
+                        <td class="num mono">
+                            @Fmt.N(settings.TankerCostPerKm, 2) / km ·
+                            @Fmt.N(settings.DriverCostPerHour, 0) / h ·
+                            @Fmt.N(settings.FixedDispatchCost, 0)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.economics.routemodel"]</td>
+                        <td class="num mono">
+                            @settings.AverageStopsPerRoute @T["admin.pricing.stops"].ToLowerInvariant() · @Fmt.N(settings.InterStopKm, 1) km · @settings.ServiceMinutesPerStop min
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <p class="tiny muted">@T["admin.economics.editcosts"] <a asp-action="Pricing">@T["admin.pricing.title"]</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>

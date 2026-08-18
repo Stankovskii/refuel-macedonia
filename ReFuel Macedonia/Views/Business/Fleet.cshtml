@@ -1,0 +1,245 @@
+@model FleetDashboardVm
+@{
+    ViewData["Title"] = T["business.fleet.title"];
+    var accounts = ViewBag.Accounts as List<BusinessAccount> ?? new List<BusinessAccount>();
+    var trend = Model.LitresLastMonth <= 0 ? 0 : Math.Round((Model.LitresThisMonth - Model.LitresLastMonth) / Model.LitresLastMonth * 100, 1);
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index" asp-route-accountId="@Model.Account.Id">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["nav.business"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("building")" /> @T["business.fleet.eyebrow"]</span>
+            <h1>@Model.Account.CompanyName</h1>
+            <p class="muted small">
+                @T["customertype." + Model.Account.CustomerType.ToString().ToLowerInvariant()]
+                @if (Model.Tier is not null)
+                {
+                    <text> · @Model.Tier.LocalizedName(T.Culture)</text>
+                }
+                @if (!string.IsNullOrEmpty(Model.VolumeBandLabel))
+                {
+                    <text> · @Model.VolumeBandLabel</text>
+                }
+            </p>
+        </div>
+        <div class="pill-tabs">
+            <a asp-action="Index" asp-route-accountId="@Model.Account.Id">@T["business.tab.overview"]</a>
+            <a class="active" asp-action="Fleet" asp-route-accountId="@Model.Account.Id">@T["business.tab.fleet"]</a>
+            <a asp-action="Sites" asp-route-accountId="@Model.Account.Id">@T["business.tab.sites"]</a>
+            <a asp-action="Schedules" asp-route-accountId="@Model.Account.Id">@T["business.tab.schedules"]</a>
+            <a asp-action="Savings">@T["business.tab.savings"]</a>
+        </div>
+    </div>
+
+    @if (accounts.Count > 1)
+    {
+        <form method="get" class="flex section">
+            <select name="accountId">
+                @foreach (var account in accounts)
+                {
+                    <option value="@account.Id" selected="@(account.Id == Model.Account.Id)">@account.CompanyName</option>
+                }
+            </select>
+            <button class="btn btn-ghost btn-sm" type="submit">@T["common.apply"]</button>
+        </form>
+    }
+
+    <div class="grid grid-5 section">
+        <div class="card kpi">
+            <strong>@Fmt.N(Model.LitresThisMonth, 0) л</strong>
+            <span>@T["business.fleet.thismonth"]</span>
+            @if (trend != 0)
+            {
+                <span class="@(trend > 0 ? "trend-up" : "trend-down") tiny">@Fmt.TrendArrow(trend > 0 ? "up" : "down") @Fmt.Percent(Math.Abs(trend))</span>
+            }
+        </div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.SpendThisMonth, 0)</strong><span>@T["business.fleet.spend"]</span></div>
+        <div class="card kpi"><strong>@Fmt.N(Model.AveragePricePerLitre, 2)</strong><span>@T["business.fleet.avgprice"]</span></div>
+        <div class="card kpi"><strong>@Model.ActiveAssets</strong><span>@T["business.fleet.assets"]</span></div>
+        <div class="card kpi"><strong>@Model.ActiveSites</strong><span>@T["business.fleet.sites"]</span></div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["business.fleet.consumption"]</h2>
+            <div class="chart-box"><canvas id="fleet-chart"></canvas></div>
+
+            @if (Model.LitresByAssetKind.Count > 0)
+            {
+                <div class="divider"></div>
+                <h3>@T["business.fleet.bykind"]</h3>
+                <div class="chart-sm"><canvas id="fleet-kind-chart"></canvas></div>
+            }
+        </div>
+
+        <div class="stack">
+            <div class="card card-dark">
+                <span class="upper" style="color:var(--brand-400)">@T["business.fleet.saved"]</span>
+                <h2 style="color:#fff">@Fmt.Money(Model.SavedByDiscount, 0)</h2>
+                <p class="muted small">
+                    @T["business.fleet.saved.detail"] @Fmt.N(Model.DiscountPerLitre, 2) @T["common.perlitre"]
+                </p>
+                <div class="divider"></div>
+                <div class="stat-strip">
+                    <div><span>@T["business.fleet.openinvoices"]</span><strong>@Model.OpenInvoices</strong></div>
+                    <div><span>@T["business.fleet.openinvoicetotal"]</span><strong>@Fmt.Money(Model.OpenInvoiceTotal, 0)</strong></div>
+                </div>
+            </div>
+
+            @if (Model.Alerts.Count > 0)
+            {
+                <div class="card">
+                    <h3><partial name="_Icons" model="@("bell")" /> @T["business.fleet.alerts"]</h3>
+                    <p class="tiny muted">@T["business.fleet.alerts.note"]</p>
+                    @foreach (var alert in Model.Alerts)
+                    {
+                        <div class="alert alert-warn small">
+                            <partial name="_Icons" model="@("alert")" />
+                            <div>
+                                <strong>@alert.Subject</strong>
+                                <div class="tiny">@Fmt.LocalTime(alert.DetectedAtUtc) · @Fmt.N(alert.VarianceLitres, 1) л</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["business.fleet.assets"]</h2>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["business.asset"]</th>
+                        <th>@T["business.asset.kind"]</th>
+                        <th>@T["business.fleet.site"]</th>
+                        <th class="num">@T["business.asset.capacity"]</th>
+                        <th class="num">@T["business.fleet.level"]</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var asset in Model.Assets.OrderBy(a => a.Kind).ThenBy(a => a.Name))
+                    {
+                        <tr>
+                            <td>
+                                <partial name="_Icons" model="@asset.KindIcon" />
+                                <strong>@asset.Name</strong>
+                                <div class="tiny muted mono">@asset.Identifier</div>
+                            </td>
+                            <td class="small">@T["asset." + asset.Kind.ToString().ToLowerInvariant()]</td>
+                            <td class="small">@(asset.ConstructionSite?.Name ?? "—")</td>
+                            <td class="num mono">@Fmt.N(asset.TankCapacityLitres, 0) л</td>
+                            <td class="num">
+                                <div class="meter"><span style="width:@Fmt.Plain(Math.Clamp(asset.CurrentLevelPercent, 0, 100), 0)%"></span></div>
+                                <span class="tiny mono">@Fmt.N(asset.CurrentLevelPercent, 0) %</span>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>@T["business.fleet.upcoming"]</h2>
+            @if (Model.UpcomingDeliveries.Count == 0)
+            {
+                <p class="muted small">@T["business.fleet.upcoming.empty"]</p>
+            }
+            else
+            {
+                <ol class="steps">
+                    @foreach (var delivery in Model.UpcomingDeliveries)
+                    {
+                        <li>
+                            <strong>@Fmt.LocalTime(delivery.ScheduledForUtc, "dd.MM HH:mm")</strong> ·
+                            @(delivery.ContractAsset?.Name ?? delivery.SupplyContract?.Title ?? "—") ·
+                            <span class="mono">@Fmt.N(delivery.PlannedLitres, 0) л</span>
+                        </li>
+                    }
+                </ol>
+            }
+
+            <div class="divider"></div>
+
+            <h3>@T["business.fleet.schedules"]</h3>
+            @foreach (var schedule in Model.Schedules.Where(s => s.IsActive))
+            {
+                <div class="flex spread small" style="padding:.3rem 0;border-bottom:1px dashed var(--line)">
+                    <span>
+                        <strong>@schedule.Title</strong>
+                        <div class="tiny muted">
+                            @T["schedulekind." + schedule.Kind.ToString().ToLowerInvariant()] ·
+                            @schedule.WindowStart.ToString(@"hh\:mm")–@schedule.WindowEnd.ToString(@"hh\:mm")
+                        </div>
+                    </span>
+                    <span class="mono nowrap">@Fmt.N(schedule.MonthlyLitres, 0) л/@T["common.month"]</span>
+                </div>
+            }
+            <a class="btn btn-quiet btn-sm" asp-action="Schedules" asp-route-accountId="@Model.Account.Id" style="margin-top:.6rem">@T["business.tab.schedules"]</a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var el = document.getElementById('fleet-chart');
+            if (!el || typeof Chart === 'undefined') return;
+
+            var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LitresByMonth.Keys));
+            var values = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LitresByMonth.Values));
+
+            new Chart(el, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'L',
+                        data: values,
+                        backgroundColor: 'rgba(255,106,0,.75)',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            var kindEl = document.getElementById('fleet-kind-chart');
+            if (!kindEl) return;
+
+            var kindLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.LitresByAssetKind.Keys.Select(k => T["asset." + k.ToLowerInvariant()])));
+            var kindValues = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LitresByAssetKind.Values));
+
+            new Chart(kindEl, {
+                type: 'doughnut',
+                data: {
+                    labels: kindLabels,
+                    datasets: [{
+                        data: kindValues,
+                        backgroundColor: ['#FF6A00', '#FFB03A', '#4A5262', '#C6CDD8', '#8A93A3', '#F0590A', '#2F80ED'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '58%',
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
+                }
+            });
+        })();
+    </script>
+}

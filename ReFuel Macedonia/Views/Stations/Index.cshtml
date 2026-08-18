@@ -1,0 +1,167 @@
+@model StationSearchVm
+@{
+    ViewData["Title"] = T["stations.title"];
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["stations.title"]</h1>
+            <p class="muted small">@T["stations.subtitle"] · @Model.TotalCount @T["stations.found"]</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Map">@T["nav.map"]</a>
+    </div>
+
+    <form method="get" class="card section" id="station-search">
+        <div class="filter-bar">
+            <div style="flex:2;min-width:220px">
+                <label>@T["stations.filter.search"]</label>
+                <input type="search" name="Query" value="@Model.Query" placeholder="@T["stations.filter.searchph"]" />
+            </div>
+            <div>
+                <label>@T["stations.filter.city"]</label>
+                <select name="City">
+                    <option value="">@T["common.all"]</option>
+                    @foreach (var city in Model.Cities)
+                    {
+                        <option value="@city" selected="@(city == Model.City)">@city</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label>@T["stations.filter.brand"]</label>
+                <select name="BrandId">
+                    <option value="">@T["common.all"]</option>
+                    @foreach (var brand in Model.Brands)
+                    {
+                        <option value="@brand.Id" selected="@(brand.Id == Model.BrandId)">@brand.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label>@T["stations.filter.fuel"]</label>
+                <select name="FuelTypeId">
+                    @foreach (var fuel in Model.Fuels)
+                    {
+                        <option value="@fuel.Id" selected="@(fuel.Id == Model.FuelTypeId)">@fuel.LocalizedName(T.Culture)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label>@T["stations.filter.sort"]</label>
+                <select name="Sort">
+                    <option value="price" selected="@(Model.Sort == "price")">@T["stations.sort.price"]</option>
+                    <option value="distance" selected="@(Model.Sort == "distance")">@T["stations.sort.distance"]</option>
+                    <option value="name" selected="@(Model.Sort == "name")">@T["stations.sort.name"]</option>
+                    <option value="city" selected="@(Model.Sort == "city")">@T["stations.sort.city"]</option>
+                </select>
+            </div>
+            <div>
+                <label>@T["stations.filter.radius"]</label>
+                <input type="number" name="RadiusKm" min="1" max="120" step="1" value="@Fmt.Plain(Model.RadiusKm, 0)" />
+            </div>
+            <div>
+                <button type="submit" class="btn btn-primary">@T["common.apply"]</button>
+            </div>
+        </div>
+
+        <div class="flex" style="margin-top:.7rem">
+            <label class="check"><input type="checkbox" name="Open24h" value="true" checked="@Model.Open24h" /> 24/7</label>
+            <label class="check"><input type="checkbox" name="WithLpg" value="true" checked="@Model.WithLpg" /> LPG</label>
+            <label class="check"><input type="checkbox" name="WithShop" value="true" checked="@Model.WithShop" /> @T["station.shop"]</label>
+            <label class="check"><input type="checkbox" name="WithEv" value="true" checked="@Model.WithEv" /> EV</label>
+
+            <input type="hidden" name="Latitude" id="lat" value="@(Model.Latitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+            <input type="hidden" name="Longitude" id="lng" value="@(Model.Longitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-near">@T["stations.nearme"]</button>
+        </div>
+    </form>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["stations.col.name"]</th>
+                <th>@T["stations.col.city"]</th>
+                <th>@T["stations.col.features"]</th>
+                @if (Model.Latitude.HasValue)
+                {
+                    <th class="num">@T["stations.col.distance"]</th>
+                }
+                <th class="num">@T["stations.col.price"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (Model.Results.Count == 0)
+            {
+                <tr><td colspan="6" class="center muted">@T["common.nodata"]</td></tr>
+            }
+            @foreach (var station in Model.Results)
+            {
+                <tr>
+                    <td>
+                        <span class="station-dot inline" style="background:@station.BrandColor;width:9px;height:9px;border-radius:50%"></span>
+                        <a asp-action="Details" asp-route-id="@station.Id" asp-route-fuelTypeId="@Model.FuelTypeId">@station.Name</a>
+                        @if (station.IsVerified)
+                        {
+                            <span class="badge badge-ok">✓</span>
+                        }
+                        <div class="small muted">@station.Address</div>
+                    </td>
+                    <td>@station.City</td>
+                    <td>
+                        <div class="chips">
+                            @if (station.IsOpen24h) { <span class="chip">24/7</span> }
+                            @if (station.HasLpg) { <span class="chip">LPG</span> }
+                            @if (station.HasShop) { <span class="chip">@T["station.shop"]</span> }
+                            @if (station.HasCarWash) { <span class="chip">@T["station.carwash"]</span> }
+                            @if (station.HasEvCharger) { <span class="chip">EV</span> }
+                        </div>
+                    </td>
+                    @if (Model.Latitude.HasValue)
+                    {
+                        <td class="num">@Fmt.Km(station.DistanceKm)</td>
+                    }
+                    <td class="num"><strong>@(station.Price.HasValue ? Fmt.N(station.Price.Value, 2) : "-")</strong></td>
+                    <td class="num">
+                        <a class="btn btn-ghost btn-sm" asp-controller="Orders" asp-action="Create" asp-route-stationId="@station.Id" asp-route-fuelTypeId="@Model.FuelTypeId">@T["common.order"]</a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="pager">
+            @for (var p = Math.Max(1, Model.Page - 4); p <= Math.Min(Model.TotalPages, Model.Page + 4); p++)
+            {
+                if (p == Model.Page)
+                {
+                    <span class="current">@p</span>
+                }
+                else
+                {
+                    <a asp-action="Index" asp-route-Page="@p" asp-route-Query="@Model.Query" asp-route-City="@Model.City"
+                       asp-route-BrandId="@Model.BrandId" asp-route-FuelTypeId="@Model.FuelTypeId" asp-route-Sort="@Model.Sort">@p</a>
+                }
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById("btn-near").addEventListener("click", function () {
+            ReFuel.locate(function (position) {
+                if (!position) { alert("@T["stations.nogeo"]"); return; }
+                document.getElementById("lat").value = position.lat.toFixed(6);
+                document.getElementById("lng").value = position.lng.toFixed(6);
+                document.querySelector("select[name=Sort]").value = "distance";
+                document.getElementById("station-search").submit();
+            });
+        });
+    </script>
+}

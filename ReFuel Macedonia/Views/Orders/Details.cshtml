@@ -1,0 +1,138 @@
+@model Order
+@{
+    ViewData["Title"] = T["order.details.title"] + " " + Model.Reference;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["nav.orders"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["order.details.title"] <span class="mono">@Model.Reference</span></h1>
+            <p class="muted small">
+                @Fmt.LocalTime(Model.CreatedAtUtc) ·
+                <span class="badge @Fmt.StatusClass(Model.Status)">@T[Fmt.StatusKey(Model.Status)]</span>
+                <span class="badge">@T[Fmt.OrderTypeKey(Model.Type)]</span>
+            </p>
+        </div>
+        <div class="flex">
+            <a class="btn btn-ghost btn-sm" asp-action="Track" asp-route-id="@Model.Id">@T["order.track"]</a>
+            @if (Model.Status is OrderStatus.Pending or OrderStatus.Confirmed)
+            {
+                <form asp-action="Cancel" asp-route-id="@Model.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-danger btn-sm" type="submit">@T["order.cancel"]</button>
+                </form>
+            }
+        </div>
+    </div>
+
+    <div class="split">
+        <div class="stack">
+            <div class="card">
+                <h2>@T["order.summary"]</h2>
+                <table class="data">
+                    <tbody>
+                    <tr><td>@T["station.fuel"]</td><td class="num">@Model.FuelType?.LocalizedName(T.Culture)</td></tr>
+                    <tr><td>@T["order.litres"]</td><td class="num">@Fmt.Litres(Model.Litres)</td></tr>
+                    @if (Model.PumpPricePerLitre > 0 && Model.PumpPricePerLitre != Model.UnitPrice)
+                    {
+                        <tr><td>@T["pricing.pump"]</td><td class="num muted">@Fmt.Money(Model.PumpPricePerLitre)</td></tr>
+                    }
+                    <tr><td>@T["order.unitprice"]</td><td class="num">@Fmt.Money(Model.UnitPrice)</td></tr>
+                    <tr><td>@T["order.subtotal"]</td><td class="num">@Fmt.Money(Model.FuelSubtotal, 0)</td></tr>
+                    <tr><td>@T["order.deliveryfee"]</td><td class="num">@Fmt.Money(Model.DeliveryFee, 0)</td></tr>
+                    @if (Model.EmergencySurcharge > 0)
+                    {
+                        <tr><td>@T["order.surcharge"]</td><td class="num">@Fmt.Money(Model.EmergencySurcharge, 0)</td></tr>
+                    }
+                    @if (Model.DiscountAmount > 0)
+                    {
+                        <tr class="trend-down"><td>@T["order.discount"] @Model.Promotion?.Code</td><td class="num">-@Fmt.Money(Model.DiscountAmount, 0)</td></tr>
+                    }
+                    <tr><td><strong>@T["order.total"]</strong></td><td class="num"><strong>@Fmt.Money(Model.Total, 0)</strong></td></tr>
+                    <tr><td>@T["order.payment"]</td><td class="num">@T["order.pay." + Model.PaymentMethod.ToString().ToLowerInvariant()]</td></tr>
+                    <tr><td>@T["order.points"]</td><td class="num">+@Model.PointsEarned</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>@T["order.timeline"]</h2>
+                <ul class="timeline">
+                    @foreach (var entry in Model.StatusHistory)
+                    {
+                        <li>
+                            <span class="time">@Fmt.LocalTime(entry.CreatedAtUtc)</span>
+                            <strong>@T[Fmt.StatusKey(entry.Status)]</strong>
+                            @if (!string.IsNullOrEmpty(entry.Note))
+                            {
+                                <span class="muted small">· @T[entry.Note]</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h3>@T["order.delivery"]</h3>
+                <p class="small soft">
+                    <strong>@Model.DeliveryAddress</strong><br />
+                    @Model.DeliveryCity<br />
+                    @Model.ContactPhone
+                </p>
+                <div id="map-order" class="map-box map-sm"></div>
+                <div class="flex small soft" style="margin-top:.5rem">
+                    <span>@T["order.distance"]: <strong>@Fmt.Km(Model.DistanceKm)</strong></span>
+                    @if (Model.EtaUtc.HasValue)
+                    {
+                        <span>@T["order.eta"]: <strong>@Fmt.LocalTime(Model.EtaUtc.Value, "HH:mm")</strong></span>
+                    }
+                </div>
+            </div>
+
+            @if (Model.Station is not null)
+            {
+                <div class="card">
+                    <h3>@T["order.sourcedfrom"]</h3>
+                    <strong><a asp-controller="Stations" asp-action="Details" asp-route-id="@Model.Station.Id">@Model.Station.Name</a></strong>
+                    <div class="muted small">@Model.Station.City · @Model.Station.Brand?.Name</div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(Model.Notes))
+            {
+                <div class="card">
+                    <h3>@T["order.notes"]</h3>
+                    <p class="small soft">@Model.Notes</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var lat = @Json.Serialize(Model.DeliveryLatitude), lng = @Json.Serialize(Model.DeliveryLongitude);
+            var map = L.map("map-order").setView([lat, lng], 14);
+            ReFuel.tileLayer().addTo(map);
+            L.marker([lat, lng]).addTo(map).bindPopup(@Json.Serialize(Model.DeliveryAddress));
+
+            @if (Model.Station is not null)
+            {
+                <text>
+                var stationLatLng = [@Json.Serialize(Model.Station.Latitude), @Json.Serialize(Model.Station.Longitude)];
+                L.circleMarker(stationLatLng, { radius: 7, color: "#0F766E", fillOpacity: .85 })
+                    .addTo(map).bindPopup(@Json.Serialize(Model.Station.Name));
+                L.polyline([stationLatLng, [lat, lng]], { color: "#0F766E", dashArray: "6,6", weight: 2 }).addTo(map);
+                map.fitBounds(L.latLngBounds([stationLatLng, [lat, lng]]).pad(0.25));
+                </text>
+            }
+        })();
+    </script>
+}

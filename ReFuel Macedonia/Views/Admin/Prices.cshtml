@@ -1,0 +1,73 @@
+@model List<NationalPrice>
+@{
+    ViewData["Title"] = T["admin.prices.title"];
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+    var latest = Model.GroupBy(p => p.FuelTypeId).ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.EffectiveFrom).First());
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.prices.title"]</h1>
+            <p class="muted small">@T["admin.prices.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.prices.enter"]</h2>
+        <form asp-action="SetPrices" method="post">
+            @Html.AntiForgeryToken()
+            <div class="form-grid">
+                <div>
+                    <label>@T["price.effective"]</label>
+                    <input type="date" name="effectiveFrom" value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                </div>
+                @foreach (var fuel in fuels)
+                {
+                    var currentValue = latest.TryGetValue(fuel.Id, out var currentPrice) ? Fmt.Plain(currentPrice.Price, 3) : string.Empty;
+
+                    <div>
+                        <label>@fuel.LocalizedName(T.Culture)</label>
+                        <input type="hidden" name="codes" value="@fuel.Code" />
+                        <input type="number" step="0.001" min="0" name="values" value="@currentValue" />
+                    </div>
+                }
+            </div>
+            <button class="btn btn-primary" type="submit" style="margin-top:.8rem">@T["common.save"]</button>
+        </form>
+        <p class="small muted" style="margin-top:.6rem">@T["admin.prices.note"]</p>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["prices.col.date"]</th>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["prices.col.max"]</th>
+                <th class="num">@T["prices.col.change"]</th>
+                <th>@T["prices.col.source"]</th>
+                <th>@T["admin.prices.ref"]</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var price in Model)
+            {
+                <tr>
+                    <td>@Fmt.LocalTime(price.EffectiveFrom, "dd.MM.yyyy")</td>
+                    <td>@price.FuelType?.LocalizedName(T.Culture)</td>
+                    <td class="num"><strong>@Fmt.N(price.Price, 3)</strong></td>
+                    <td class="num @(price.Change > 0 ? "trend-up" : price.Change < 0 ? "trend-down" : "trend-flat")">@Fmt.Change(price.Change)</td>
+                    <td><span class="badge @(price.IsOfficial ? "badge-ok" : "")">@T[Fmt.SourceKey(price.Source)]</span></td>
+                    <td class="small muted">@price.DecisionReference</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

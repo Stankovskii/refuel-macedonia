@@ -1,0 +1,81 @@
+@model List<PriceReport>
+@{
+    ViewData["Title"] = T["admin.tab.reports"];
+    ReportStatus status = ViewBag.Status ?? ReportStatus.Pending;
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.tab.reports"]</h1>
+            <p class="muted small">@T["admin.reports.subtitle"]</p>
+        </div>
+        <div class="pill-tabs">
+            @foreach (var s in new[] { ReportStatus.Pending, ReportStatus.Approved, ReportStatus.Rejected })
+            {
+                <a class="@(s == status ? "active" : "")" asp-action="Reports" asp-route-status="@s">@T["report.status." + s.ToString().ToLowerInvariant()]</a>
+            }
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>@T["prices.col.date"]</th>
+                <th>@T["nav.stations"]</th>
+                <th>@T["station.fuel"]</th>
+                <th class="num">@T["station.price"]</th>
+                <th class="num">@T["report.plausibility"]</th>
+                <th>@T["common.user"]</th>
+                <th>@T["report.note"]</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="8" class="center muted">@T["common.nodata"]</td></tr>
+            }
+            @foreach (var report in Model)
+            {
+                <tr>
+                    <td class="small">@Fmt.LocalTime(report.CreatedAtUtc)</td>
+                    <td><a asp-controller="Stations" asp-action="Details" asp-route-id="@report.StationId">@report.Station?.Name</a></td>
+                    <td>@report.FuelType?.LocalizedName(T.Culture)</td>
+                    <td class="num"><strong>@Fmt.N(report.Price, 2)</strong></td>
+                    <td class="num">
+                        @Fmt.N(report.PlausibilityScore * 100, 0) %
+                        <div class="score-bar"><span style="width:@Fmt.N(report.PlausibilityScore * 100, 0)%"></span></div>
+                    </td>
+                    <td class="small">@report.User?.FullName</td>
+                    <td class="small muted">@report.Note</td>
+                    <td class="num">
+                        @if (report.Status == ReportStatus.Pending)
+                        {
+                            <div class="flex">
+                                <form asp-action="Moderate" asp-route-id="@report.Id" asp-route-approve="true" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-primary btn-sm" type="submit">@T["common.approve"]</button>
+                                </form>
+                                <form asp-action="Moderate" asp-route-id="@report.Id" asp-route-approve="false" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-ghost btn-sm" type="submit">@T["common.reject"]</button>
+                                </form>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="badge">@T["report.status." + report.Status.ToString().ToLowerInvariant()]</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

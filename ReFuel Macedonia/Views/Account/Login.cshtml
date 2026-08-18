@@ -1,0 +1,56 @@
+@model LoginVm
+@{
+    ViewData["Title"] = T["account.login"];
+}
+
+<div class="container">
+    <div class="auth-wrap">
+    <div class="auth-brand">
+        <partial name="_BrandLockup" model="@("")" />
+    </div>
+        <div class="card">
+            <h1>@T["account.login"]</h1>
+            <p class="muted small">@T["account.login.subtitle"]</p>
+
+            <form asp-action="Login" method="post" class="stack">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-err">
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@T[error.ErrorMessage]</div>
+                        }
+                    </div>
+                }
+
+                <div>
+                    <label asp-for="Email">@T["account.email"]</label>
+                    <input asp-for="Email" type="email" autocomplete="username" />
+                </div>
+                <div>
+                    <label asp-for="Password">@T["account.password"]</label>
+                    <input asp-for="Password" type="password" autocomplete="current-password" />
+                </div>
+                <label class="check"><input asp-for="RememberMe" type="checkbox" /> @T["account.remember"]</label>
+
+                <button class="btn btn-primary btn-block" type="submit">@T["account.login"]</button>
+            </form>
+
+            <div class="divider"></div>
+            <p class="small muted">@T["account.noaccount"] <a asp-action="Register">@T["nav.register"]</a></p>
+
+            <div class="alert alert-info small">
+                <strong>@T["account.demo"]</strong><br />
+                demo@@refuel.mk / Demo123!<br />
+                admin@@refuel.mk / Admin123!
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,475 @@
+@model PricingAdminVm
+@{
+    ViewData["Title"] = T["admin.pricing.title"];
+    var request = Model.PreviewRequest;
+    var preview = Model.Preview;
+    var spread = Model.Settings.ProcurementSpreadPerLitre;
+
+    string CustomerPays(PricingTier tier)
+    {
+        var delta = spread - tier.MarginPerLitre;
+        if (delta > 0) return T["pricing.pump"] + " − " + Fmt.N(delta, 2);
+        if (delta < 0) return T["pricing.pump"] + " + " + Fmt.N(-delta, 2);
+        return "= " + T["pricing.pump"];
+    }
+
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["admin.tab.dashboard"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("wallet")" /> @T["admin.pricing.eyebrow"]</span>
+            <h1>@T["admin.pricing.title"]</h1>
+            <p class="muted small">@T["admin.pricing.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="alert alert-info section">
+        <partial name="_Icons" model="@("shield")" />
+        <div>@T["admin.pricing.disclaimer"]</div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["admin.pricing.preview"]</h2>
+            <p class="muted small">@T["admin.pricing.preview.subtitle"]</p>
+
+            <form method="get" class="form-grid">
+                <div>
+                    <label>@T["station.fuel"]</label>
+                    <select name="fuelTypeId">
+                        @foreach (var fuel in Model.Fuels)
+                        {
+                            <option value="@fuel.Id" selected="@(fuel.Id == Model.SelectedFuelTypeId)">@fuel.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["admin.pricing.customertype"]</label>
+                    <select name="customerType">
+                        @foreach (var type in Enum.GetValues<CustomerType>())
+                        {
+                            <option value="@type" selected="@(type == request.CustomerType)">@T["customertype." + type.ToString().ToLowerInvariant()]</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["order.litres"]</label>
+                    <input type="number" name="litres" step="1" min="1" value="@Fmt.Plain(request.Litres, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.distance"]</label>
+                    <input type="number" name="distanceKm" step="0.5" min="0" value="@Fmt.Plain(request.DistanceKm, 1)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.monthlylitres"]</label>
+                    <input type="number" name="monthlyLitres" step="100" min="0" value="@Fmt.Plain(request.MonthlyLitres, 0)" />
+                </div>
+                <div>
+                    <label>@T["order.type"]</label>
+                    <select name="orderType">
+                        <option value="@OrderType.Standard" selected="@(request.OrderType == OrderType.Standard)">@T["order.type.standard"]</option>
+                        <option value="@OrderType.Scheduled" selected="@(request.OrderType == OrderType.Scheduled)">@T["order.type.scheduled"]</option>
+                        <option value="@OrderType.Emergency" selected="@(request.OrderType == OrderType.Emergency)">@T["order.type.emergency"]</option>
+                    </select>
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary btn-block" type="submit">@T["admin.pricing.recalculate"]</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card card-dark">
+            @if (preview is null)
+            {
+                <h3>@T["admin.pricing.noprice"]</h3>
+                <p class="muted small">@T["admin.pricing.noprice.detail"]</p>
+            }
+            else
+            {
+                <span class="upper" style="color:var(--brand-400)">@T["admin.pricing.result"]</span>
+                <h2 style="color:#fff">@Fmt.Money(preview.Total, 0)</h2>
+                <p class="muted small">
+                    @T["pricing.pump"] <strong class="mono">@Fmt.N(preview.PumpPricePerLitre, 2)</strong> →
+                    @T["pricing.why.yourprice"] <strong class="mono">@Fmt.N(preview.EffectivePricePerLitre, 2)</strong> @T["common.perlitre"]
+                    @if (preview.CustomerDiscountPerLitre > 0)
+                    {
+                        <span class="gain">(−@Fmt.N(preview.CustomerDiscountPerLitre, 2))</span>
+                    }
+                    else if (preview.CustomerDiscountPerLitre < 0)
+                    {
+                        <span class="loss">(+@Fmt.N(-preview.CustomerDiscountPerLitre, 2))</span>
+                    }
+                    · @preview.TierName ·
+                    @(preview.ZoneName ?? T["pricing.zone.default"])
+                </p>
+
+                <div class="divider"></div>
+
+                <table class="data" style="font-size:.84rem">
+                    <tbody>
+                    @foreach (var line in preview.Lines)
+                    {
+                        <tr>
+                            <td>
+                                @line.Label
+                                @if (!string.IsNullOrEmpty(line.Detail))
+                                {
+                                    <div class="tiny muted">@line.Detail</div>
+                                }
+                            </td>
+                            <td class="num mono">@Fmt.N(line.Amount, 2)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+
+                <div class="divider"></div>
+
+                <span class="upper" style="color:var(--steel-300)">@T["admin.pricing.internal"]</span>
+                <table class="data" style="font-size:.84rem">
+                    <tbody>
+                    @foreach (var line in preview.InternalLines)
+                    {
+                        <tr>
+                            <td>
+                                @line.Label
+                                @if (!string.IsNullOrEmpty(line.Detail))
+                                {
+                                    <div class="tiny muted">@line.Detail</div>
+                                }
+                            </td>
+                            <td class="num mono">@Fmt.N(line.Amount, 2)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+
+                <p class="tiny muted" style="margin-top:.6rem">@T["pricing.internal.notprofit"]</p>
+
+                @foreach (var warning in preview.Warnings)
+                {
+                    <div class="alert alert-warn" style="margin-top:.6rem">
+                        <partial name="_Icons" model="@("alert")" />
+                        <div>@warning</div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.pricing.costs"]</h2>
+        <p class="muted small">@T["admin.pricing.costs.subtitle"]</p>
+
+        <form asp-action="SavePricingSettings" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="@Model.Settings.Id" />
+
+            <div class="form-grid">
+                <div>
+                    <label>@T["admin.pricing.tankercost"]</label>
+                    <input type="number" name="TankerCostPerKm" step="0.5" min="0" value="@Fmt.Plain(Model.Settings.TankerCostPerKm, 2)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.drivercost"]</label>
+                    <input type="number" name="DriverCostPerHour" step="10" min="0" value="@Fmt.Plain(Model.Settings.DriverCostPerHour, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.dispatchcost"]</label>
+                    <input type="number" name="FixedDispatchCost" step="5" min="0" value="@Fmt.Plain(Model.Settings.FixedDispatchCost, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.fixedcosts"]</label>
+                    <input type="number" name="MonthlyFixedCosts" step="1000" min="0" value="@Fmt.Plain(Model.Settings.MonthlyFixedCosts, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.speed"]</label>
+                    <input type="number" name="AverageSpeedKph" step="1" min="10" max="110" value="@Fmt.Plain(Model.Settings.AverageSpeedKph, 0)" />
+                </div>
+                <div>
+                    <label>@T["invoice.vat"] (%)</label>
+                    <input type="number" name="VatRate" step="1" min="0" max="30" value="@Fmt.Plain(Model.Settings.VatRate, 0)" />
+                </div>
+            </div>
+
+            <h3 style="margin-top:1rem">@T["admin.pricing.procurement"]</h3>
+            <p class="muted small">@T["admin.pricing.procurement.subtitle"]</p>
+
+            <div class="form-grid">
+                <div>
+                    <label>@T["admin.pricing.spread"]</label>
+                    <input type="number" name="ProcurementSpreadPerLitre" step="0.1" min="0" max="30" value="@Fmt.Plain(Model.Settings.ProcurementSpreadPerLitre, 2)" />
+                    <span class="tiny muted">@T["admin.pricing.spread.hint"]</span>
+                </div>
+                <div>
+                    <label>@T["admin.pricing.stops"]</label>
+                    <input type="number" name="AverageStopsPerRoute" step="1" min="1" max="20" value="@Fmt.Plain(Model.Settings.AverageStopsPerRoute, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.interstop"]</label>
+                    <input type="number" name="InterStopKm" step="0.5" min="0" max="50" value="@Fmt.Plain(Model.Settings.InterStopKm, 1)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.servicemin"]</label>
+                    <input type="number" name="ServiceMinutesPerStop" step="1" min="0" max="120" value="@Fmt.Plain(Model.Settings.ServiceMinutesPerStop, 0)" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.contractmindrop"]</label>
+                    <input type="number" name="ContractMinDropLitres" step="100" min="0" max="40000" value="@Fmt.Plain(Model.Settings.ContractMinDropLitres, 0)" />
+                </div>
+            </div>
+
+            <div class="flex" style="margin-top:.7rem">
+                <label class="check">
+                    <input type="checkbox" name="ChargeReturnLeg" value="true" checked="@Model.Settings.ChargeReturnLeg" />
+                    @T["admin.pricing.returnleg"]
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="ShowPriceExplanation" value="true" checked="@Model.Settings.ShowPriceExplanation" />
+                    @T["admin.pricing.showexplanation"]
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="ShowMarginToCustomer" value="true" checked="@Model.Settings.ShowMarginToCustomer" />
+                    @T["admin.pricing.showmargin"]
+                </label>
+            </div>
+
+            <button class="btn btn-primary btn-sm" type="submit" style="margin-top:.8rem">@T["common.save"]</button>
+            <span class="tiny muted" style="margin-left:.6rem">
+                @T["admin.pricing.updated"]: @Fmt.LocalTime(Model.Settings.UpdatedAtUtc) · @Model.Settings.UpdatedBy
+            </span>
+        </form>
+    </div>
+
+    <div class="card section">
+        <h2>@T["admin.pricing.tiers"]</h2>
+        <p class="muted small">@T["admin.pricing.tiers.subtitle"]</p>
+
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>@T["admin.pricing.tier"]</th>
+                    <th class="num">@T["admin.pricing.margin"]</th>
+                    <th class="num">@T["admin.pricing.minmargin"]</th>
+                    <th class="num">@T["admin.pricing.minfee"]</th>
+                    <th class="num">@T["admin.pricing.perkm"]</th>
+                    <th class="num">@T["admin.pricing.freeover"]</th>
+                    <th class="num">@T["admin.pricing.scheduleddiscount"]</th>
+                    <th class="num">@T["admin.pricing.emergency"]</th>
+                    <th class="num">@T["admin.pricing.minlitres"]</th>
+                    <th class="num">@T["admin.pricing.maxlitres"]</th>
+                    <th>@T["common.status"]</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var tier in Model.Tiers)
+                {
+                    <tr>
+                        <td>
+                            <form asp-action="SaveTier" method="post" id="tier-@tier.Id">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="Id" value="@tier.Id" />
+                                <input type="hidden" name="MarketingMessageMk" value="@tier.MarketingMessageMk" />
+                                <input type="hidden" name="MarketingMessageEn" value="@tier.MarketingMessageEn" />
+                                <input type="hidden" name="MarketingMessageSq" value="@tier.MarketingMessageSq" />
+                            </form>
+                            <strong>@tier.LocalizedName(T.Culture)</strong>
+                            <div class="tiny muted mono">@tier.Code</div>
+                            <div class="tiny"><span class="muted">@T["admin.pricing.customerpays"]:</span> <strong class="mono">@CustomerPays(tier)</strong></div>
+                            @if (tier.IsNegotiated)
+                            {
+                                <span class="badge badge-info">@T["admin.pricing.negotiated"]</span>
+                            }
+                        </td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="MarginPerLitre" step="0.1" min="0" value="@Fmt.Plain(tier.MarginPerLitre, 2)" style="width:80px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="MinMarginPerLitre" step="0.1" min="0" value="@Fmt.Plain(tier.MinMarginPerLitre, 2)" style="width:80px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="MinDeliveryFee" step="10" min="0" value="@Fmt.Plain(tier.MinDeliveryFee, 0)" style="width:80px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="DeliveryFeePerKm" step="1" min="0" value="@Fmt.Plain(tier.DeliveryFeePerKm, 0)" style="width:70px" /></td>
+                        <td class="num">
+                            <input form="tier-@tier.Id" type="number" name="FreeDeliveryThreshold" step="100" min="0" value="@Fmt.Plain(tier.FreeDeliveryThreshold, 0)" style="width:90px" />
+                            <label class="check tiny" style="display:flex;justify-content:flex-end;margin-top:.25rem" title="@T["admin.pricing.freescheduledonly"]">
+                                <input form="tier-@tier.Id" type="checkbox" name="FreeDeliveryScheduledOnly" value="true" checked="@tier.FreeDeliveryScheduledOnly" />
+                                @T["admin.pricing.scheduledonly"]
+                            </label>
+                        </td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="ScheduledDeliveryDiscountPercent" step="5" min="0" max="90" value="@Fmt.Plain(tier.ScheduledDeliveryDiscountPercent, 0)" style="width:70px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="EmergencySurcharge" step="10" min="0" value="@Fmt.Plain(tier.EmergencySurcharge, 0)" style="width:80px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="MinOrderLitres" step="1" min="1" value="@Fmt.Plain(tier.MinOrderLitres, 0)" style="width:90px" /></td>
+                        <td class="num"><input form="tier-@tier.Id" type="number" name="MaxOrderLitres" step="1" min="1" value="@Fmt.Plain(tier.MaxOrderLitres, 0)" style="width:90px" /></td>
+                        <td>
+                            <label class="check tiny">
+                                <input form="tier-@tier.Id" type="checkbox" name="IsActive" value="true" checked="@tier.IsActive" />
+                                @T["common.active"]
+                            </label>
+                            <input form="tier-@tier.Id" type="hidden" name="IsNegotiated" value="@tier.IsNegotiated.ToString().ToLowerInvariant()" />
+                        </td>
+                        <td class="num">
+                            <button form="tier-@tier.Id" class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="split section">
+        <div class="card">
+            <h2>@T["admin.pricing.bands"]</h2>
+            <p class="muted small">@T["admin.pricing.bands.subtitle"]</p>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["admin.pricing.band"]</th>
+                        <th>@T["admin.pricing.tier"]</th>
+                        <th class="num">@T["admin.pricing.from"]</th>
+                        <th class="num">@T["admin.pricing.to"]</th>
+                        <th class="num">@T["admin.pricing.discount"]</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var band in Model.Bands)
+                    {
+                        <tr>
+                            <td>
+                                <form asp-action="SaveBand" method="post" id="band-@band.Id">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Id" value="@band.Id" />
+                                    <input type="hidden" name="LabelMk" value="@band.LabelMk" />
+                                    <input type="hidden" name="LabelEn" value="@band.LabelEn" />
+                                    <input type="hidden" name="LabelSq" value="@band.LabelSq" />
+                                    <input type="hidden" name="IsActive" value="true" />
+                                </form>
+                                @band.LocalizedLabel(T.Culture)
+                                <div class="tiny muted">@band.Range</div>
+                            </td>
+                            <td>
+                                <select form="band-@band.Id" name="PricingTierId" style="min-width:130px">
+                                    <option value="" selected="@(band.PricingTierId is null)">@T["admin.pricing.band.alltiers"]</option>
+                                    @foreach (var tier in Model.Tiers)
+                                    {
+                                        <option value="@tier.Id" selected="@(band.PricingTierId == tier.Id)">@tier.LocalizedName(T.Culture)</option>
+                                    }
+                                </select>
+                            </td>
+                            <td class="num"><input form="band-@band.Id" type="number" name="FromLitresPerMonth" step="50" min="0" value="@Fmt.Plain(band.FromLitresPerMonth, 0)" style="width:100px" /></td>
+                            <td class="num"><input form="band-@band.Id" type="number" name="ToLitresPerMonth" step="50" min="0" value="@(band.ToLitresPerMonth.HasValue ? Fmt.Plain(band.ToLitresPerMonth.Value, 0) : "")" style="width:100px" /></td>
+                            <td class="num"><input form="band-@band.Id" type="number" name="DiscountPerLitre" step="0.1" min="0" value="@Fmt.Plain(band.DiscountPerLitre, 2)" style="width:90px" /></td>
+                            <td class="num nowrap">
+                                <button form="band-@band.Id" class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                                <form asp-action="DeleteBand" method="post" style="display:inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@band.Id" />
+                                    <button class="btn btn-quiet btn-sm" type="submit">@T["common.delete"]</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="divider"></div>
+
+            <form asp-action="SaveBand" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" value="0" />
+                <input type="hidden" name="IsActive" value="true" />
+                <div>
+                    <label>@T["admin.pricing.band"]</label>
+                    <input name="LabelMk" required />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.tier"]</label>
+                    <select name="PricingTierId">
+                        <option value="">@T["admin.pricing.band.alltiers"]</option>
+                        @foreach (var tier in Model.Tiers)
+                        {
+                            <option value="@tier.Id">@tier.LocalizedName(T.Culture)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>@T["admin.pricing.from"]</label>
+                    <input type="number" name="FromLitresPerMonth" step="50" min="0" value="0" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.to"]</label>
+                    <input type="number" name="ToLitresPerMonth" step="50" min="0" />
+                </div>
+                <div>
+                    <label>@T["admin.pricing.discount"]</label>
+                    <input type="number" name="DiscountPerLitre" step="0.1" min="0" value="0" />
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button class="btn btn-steel btn-block btn-sm" type="submit">@T["common.add"]</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>@T["admin.pricing.zones"]</h2>
+            <p class="muted small">@T["admin.pricing.zones.subtitle"]</p>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>@T["admin.pricing.zone"]</th>
+                        <th class="num">@T["admin.pricing.radius"]</th>
+                        <th class="num">@T["admin.pricing.basefee"]</th>
+                        <th class="num">@T["admin.pricing.perkm"]</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var zone in Model.Zones)
+                    {
+                        <tr>
+                            <td>
+                                <form asp-action="SaveZone" method="post" id="zone-@zone.Id">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Id" value="@zone.Id" />
+                                    <input type="hidden" name="Name" value="@zone.Name" />
+                                    <input type="hidden" name="Cities" value="@zone.Cities" />
+                                    <input type="hidden" name="CenterLatitude" value="@Fmt.Plain(zone.CenterLatitude, 6)" />
+                                    <input type="hidden" name="CenterLongitude" value="@Fmt.Plain(zone.CenterLongitude, 6)" />
+                                    <input type="hidden" name="AverageSpeedKph" value="@Fmt.Plain(zone.AverageSpeedKph, 0)" />
+                                    <input type="hidden" name="ColorHex" value="@zone.ColorHex" />
+                                    <input type="hidden" name="MinOrderLitres" value="@Fmt.Plain(zone.MinOrderLitres, 0)" />
+                                </form>
+                                <span class="dot" style="background:@zone.ColorHex"></span>
+                                <strong>@zone.Name</strong>
+                                <div class="tiny muted">@zone.Cities</div>
+                            </td>
+                            <td class="num"><input form="zone-@zone.Id" type="number" name="RadiusKm" step="1" min="1" value="@Fmt.Plain(zone.RadiusKm, 0)" style="width:80px" /></td>
+                            <td class="num"><input form="zone-@zone.Id" type="number" name="BaseDeliveryFee" step="10" min="0" value="@Fmt.Plain(zone.BaseDeliveryFee, 0)" style="width:90px" /></td>
+                            <td class="num"><input form="zone-@zone.Id" type="number" name="FeePerKm" step="1" min="0" value="@Fmt.Plain(zone.FeePerKm, 0)" style="width:80px" /></td>
+                            <td class="num nowrap">
+                                <label class="check tiny">
+                                    <input form="zone-@zone.Id" type="checkbox" name="IsActive" value="true" checked="@zone.IsActive" />
+                                    @T["common.active"]
+                                </label>
+                                <button form="zone-@zone.Id" class="btn btn-ghost btn-sm" type="submit">@T["common.save"]</button>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

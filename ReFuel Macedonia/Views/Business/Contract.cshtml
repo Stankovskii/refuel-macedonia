@@ -1,0 +1,172 @@
+@model ContractDetailsVm
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@{
+    var contract = Model.Contract;
+    ViewData["Title"] = contract.ContractNumber;
+    var isAdmin = User.IsInRole("Administrator");
+    var canConfirm = isAdmin || User.IsInRole("Driver");
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index" asp-route-accountId="@contract.BusinessAccountId">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["common.back"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow"><partial name="_Icons" model="@("invoice")" /> @contract.ContractNumber</span>
+            <h1>@contract.Title</h1>
+            <p class="muted small">
+                @contract.BusinessAccount?.CompanyName ·
+                @contract.StartsOn.ToString("dd.MM.yyyy") – @contract.EndsOn.ToString("dd.MM.yyyy")
+            </p>
+        </div>
+        <div class="flex">
+            <span class="badge @(contract.IsRunning ? "badge-ok" : "badge-warn")">@T["contract.status." + contract.Status.ToString().ToLowerInvariant()]</span>
+            <span class="badge badge-violet">@T["contract.freq." + contract.Frequency.ToString().ToLowerInvariant()]</span>
+        </div>
+    </div>
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><strong>@Fmt.Litres(Model.LitresThisMonth)</strong><span>@T["business.kpi.month"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Litres(contract.CommittedLitresPerMonth)</strong><span>@T["contract.committed"]</span></div>
+        <div class="card kpi"><strong>-@Fmt.N(contract.DiscountPerLitre, 2)</strong><span>@T["contract.discount"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.SavedByContract, 0)</strong><span>@T["business.kpi.saved"]</span></div>
+    </div>
+
+    <div class="split">
+        <div class="stack">
+            <div class="card">
+                <div class="spread">
+                    <h2>@T["contract.progress"]</h2>
+                    <strong>@Fmt.N(Model.CommitmentPercent, 0) %</strong>
+                </div>
+                <div class="meter"><span style="width:@Fmt.N(Math.Min(100, Model.CommitmentPercent), 0)%"></span></div>
+                <p class="small soft" style="margin-top:.5rem">@T["contract.progress.hint"]</p>
+            </div>
+
+            <div class="card">
+                <h2>@T["contract.deliveries"]</h2>
+                <div class="table-wrap" style="border:0;box-shadow:none">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>@T["orders.col.ref"]</th>
+                            <th>@T["prices.col.date"]</th>
+                            <th>@T["business.asset"]</th>
+                            <th>@T["track.driver.title"]</th>
+                            <th class="num">@T["business.planned"]</th>
+                            <th class="num">@T["business.delivered"]</th>
+                            <th>@T["common.status"]</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var delivery in Model.Deliveries)
+                        {
+                            <tr>
+                                <td class="mono small">@delivery.Reference</td>
+                                <td class="small">@Fmt.LocalTime(delivery.ScheduledForUtc, "dd.MM.yyyy HH:mm")</td>
+                                <td class="small">@delivery.ContractAsset?.Name</td>
+                                <td class="small">@delivery.DeliveryVehicle?.DriverName</td>
+                                <td class="num">@Fmt.Litres(delivery.PlannedLitres)</td>
+                                <td class="num"><strong>@Fmt.Litres(delivery.DeliveredLitres)</strong></td>
+                                <td><span class="badge @Fmt.StatusClass(delivery.Status)">@T[Fmt.StatusKey(delivery.Status)]</span></td>
+                                <td class="num">
+                                    @if (delivery.Proof is not null)
+                                    {
+                                        <a class="btn btn-ghost btn-sm" asp-action="Proof" asp-route-id="@delivery.Id">@T["business.proof"]</a>
+                                    }
+                                    else if (canConfirm)
+                                    {
+                                        <a class="btn btn-primary btn-sm" asp-action="Confirm" asp-route-id="@delivery.Id">
+                                            <partial name="_Icons" model="@("check")" /> @T["business.confirmsign"]
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h3>@T["contract.assets"]</h3>
+                @foreach (var asset in contract.Assets)
+                {
+                    <div class="station-row">
+                        <span class="asset-pill"><partial name="_Icons" model="@(asset.KindIcon)" /></span>
+                        <div class="station-main">
+                            <strong>@asset.Name</strong>
+                            <span>@T["asset." + asset.Kind.ToString().ToLowerInvariant()] · @asset.Identifier</span>
+                        </div>
+                        <span class="small muted nowrap">@Fmt.Litres(asset.TankCapacityLitres)</span>
+                    </div>
+                }
+            </div>
+
+            <div class="card">
+                <h3>@T["contract.terms"]</h3>
+                <table class="data" style="font-size:.84rem">
+                    <tbody>
+                    <tr><td>@T["station.fuel"]</td><td class="num">@contract.FuelType?.LocalizedName(T.Culture)</td></tr>
+                    <tr><td>@T["contract.window"]</td><td class="num mono">@contract.DeliveryWindowStart.ToString(@"hh\:mm") – @contract.DeliveryWindowEnd.ToString(@"hh\:mm")</td></tr>
+                    <tr><td>@T["contract.minperdelivery"]</td><td class="num">@Fmt.Litres(contract.MinLitresPerDelivery)</td></tr>
+                    <tr><td>@T["contract.pricing"]</td><td class="num small">@(contract.PriceLinkedToErc ? T["contract.pricing.erc"] : T["contract.pricing.fixed"])</td></tr>
+                    <tr><td>@T["contract.paymentterm"]</td><td class="num">@(contract.BusinessAccount?.PaymentTermDays ?? 30) @T["common.days"]</td></tr>
+                    <tr><td>@T["contract.address"]</td><td class="num small">@contract.DefaultAddress, @contract.DefaultCity</td></tr>
+                    </tbody>
+                </table>
+                @if (!string.IsNullOrEmpty(contract.Notes))
+                {
+                    <p class="small soft" style="margin-top:.6rem">@contract.Notes</p>
+                }
+            </div>
+
+            <div class="card">
+                <div class="spread">
+                    <h3>@T["business.invoices"]</h3>
+                    @if (Model.NextDelivery is not null)
+                    {
+                        <span class="badge badge-info">@T["contract.next"]: @Fmt.LocalTime(Model.NextDelivery.ScheduledForUtc, "dd.MM HH:mm")</span>
+                    }
+                </div>
+
+                @foreach (var invoice in Model.Invoices)
+                {
+                    <div class="station-row">
+                        <div class="station-main">
+                            <strong><a asp-action="Invoice" asp-route-id="@invoice.Id">@invoice.InvoiceNumber</a></strong>
+                            <span>@invoice.PeriodStart.ToString("MM.yyyy")</span>
+                        </div>
+                        <div class="station-price">@Fmt.Money(invoice.Total, 0)</div>
+                    </div>
+                }
+
+                @if (isAdmin)
+                {
+                    <div class="divider"></div>
+                    <form asp-action="GenerateInvoice" method="post" class="stack">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="contractId" value="@contract.Id" />
+                        <div class="form-grid">
+                            <div>
+                                <label>@T["invoice.periodstart"]</label>
+                                <input type="date" name="periodStart" value="@DateTime.UtcNow.AddMonths(-1).ToString("yyyy-MM-01")" />
+                            </div>
+                            <div>
+                                <label>@T["invoice.periodend"]</label>
+                                <input type="date" name="periodEnd" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["invoice.generate"]</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>

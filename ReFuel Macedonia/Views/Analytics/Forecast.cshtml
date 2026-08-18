@@ -1,0 +1,65 @@
+@model ForecastVm
+@{
+    ViewData["Title"] = T["ai.forecast.title"] + " · " + Model.Fuel;
+    var series = ViewBag.Series as PriceSeriesVm ?? new PriceSeriesVm();
+    var fuels = ViewBag.Fuels as List<FuelType> ?? new List<FuelType>();
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["nav.ai"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@T["ai.forecast.title"]: @Model.Fuel</h1>
+            <p class="muted small">@T["ai.model"]: @Model.Model · MAE @Fmt.N(Model.BacktestMae, 3) · MAPE @Fmt.N(Model.BacktestMape, 2) %</p>
+        </div>
+        <div class="pill-tabs">
+            @foreach (var fuel in fuels)
+            {
+                <a class="@(fuel.Id == Model.FuelTypeId ? "active" : "")" asp-action="Forecast" asp-route-fuelTypeId="@fuel.Id">@fuel.LocalizedName(T.Culture)</a>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="chart-box"><canvas id="chart-forecast"></canvas></div>
+    </div>
+
+    <div class="card section">
+        <h2>@T["ai.forecast.table"]</h2>
+        <div class="table-wrap" style="border:0">
+            <table class="data">
+                <thead><tr><th>@T["prices.col.date"]</th><th class="num">@T["ai.predicted"]</th><th class="num">@T["ai.lower"]</th><th class="num">@T["ai.upper"]</th></tr></thead>
+                <tbody>
+                @foreach (var point in Model.Points)
+                {
+                    <tr>
+                        <td>@Fmt.LocalTime(point.Date, "dd.MM.yyyy")</td>
+                        <td class="num"><strong>@Fmt.N(point.Price, 2)</strong></td>
+                        <td class="num muted">@Fmt.N(point.Lower, 2)</td>
+                        <td class="num muted">@Fmt.N(point.Upper, 2)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <p class="small soft" style="margin-top:.7rem">@T[Model.AdviceKey]</p>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var history = @Html.Raw(Json.Serialize(series.Points.Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+            var forecast = @Html.Raw(Json.Serialize(Model.Points.Select(p => new { date = p.Date.ToString("dd.MM.yy"), price = p.Price })));
+            var bridge = history.slice(-1);
+
+            ReFuel.lineChart("chart-forecast", [
+                { label: @Json.Serialize(Model.Fuel), color: @Json.Serialize(Model.Color), points: history },
+                { label: @Json.Serialize(T["ai.forecast.label"]), color: "#F59E0B", points: bridge.concat(forecast), dashed: true }
+            ]);
+        })();
+    </script>
+}

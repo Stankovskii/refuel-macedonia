@@ -1,0 +1,218 @@
+@model StationDetailsVm
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@{
+    ViewData["Title"] = Model.Station.Name;
+    var current = Model.Prices.FirstOrDefault(p => p.FuelTypeId == Model.HistoryFuelTypeId);
+}
+
+<div class="container">
+    <a class="back-link" asp-action="Index">
+        <partial name="_Icons" model="@("arrow-left")" /> @T["nav.stations"]
+    </a>
+
+    <div class="section-head">
+        <div>
+            <h1>@Model.Station.Name</h1>
+            <p class="muted small">
+                @Model.Station.Address
+                @if (Model.Station.Brand is not null)
+                {
+                    <span class="badge badge-brand" style="background:@Model.Station.Brand.ColorHex">@Model.Station.Brand.Name</span>
+                }
+                @if (Model.Station.IsVerified)
+                {
+                    <span class="badge badge-ok">@T["station.verified"]</span>
+                }
+                <span class="badge">@T[Fmt.SourceKey(PriceSource.RegulatoryCommission)]</span>
+            </p>
+        </div>
+        <div class="flex">
+            <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create"
+               asp-route-stationId="@Model.Station.Id" asp-route-fuelTypeId="@Model.HistoryFuelTypeId">@T["common.order"]</a>
+            @if (SignInManager.IsSignedIn(User))
+            {
+                <form asp-action="ToggleFavorite" asp-route-id="@Model.Station.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-ghost btn-sm" type="submit">
+                        @(Model.IsFavorite ? "★ " + T["station.unfavorite"] : "☆ " + T["station.favorite"])
+                    </button>
+                </form>
+                <a class="btn btn-ghost btn-sm" asp-controller="Prices" asp-action="Report" asp-route-stationId="@Model.Station.Id">@T["station.report"]</a>
+            }
+        </div>
+    </div>
+
+    <div class="split">
+        <div class="stack">
+
+            <div class="card">
+                <h2>@T["station.prices"]</h2>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>@T["station.fuel"]</th>
+                            <th class="num">@T["station.price"]</th>
+                            <th class="num">@T["station.max"]</th>
+                            <th class="num">@T["station.diff"]</th>
+                            <th>@T["station.source"]</th>
+                            <th>@T["station.updated"]</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var price in Model.Prices)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="station-dot inline" style="background:@price.Color;width:9px;height:9px;border-radius:50%"></span>
+                                    <a asp-action="Details" asp-route-id="@Model.Station.Id" asp-route-fuelTypeId="@price.FuelTypeId">@price.Fuel</a>
+                                </td>
+                                <td class="num"><strong>@Fmt.N(price.Price, 2)</strong></td>
+                                <td class="num muted">@Fmt.N(price.NationalMax, 2)</td>
+                                <td class="num @(price.DiffToNational <= 0 ? "trend-down" : "trend-up")">@Fmt.Change(price.DiffToNational)</td>
+                                <td><span class="badge">@T[Fmt.SourceKey(price.Source)]</span></td>
+                                <td class="small muted">@Fmt.LocalTime(price.ObservedAtUtc, "dd.MM.yyyy")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>@T["station.history"]</h2>
+                <div class="chart-box chart-sm"><canvas id="chart-station"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h2>@T["station.reviews"] <span class="muted small">(@Model.Reviews.Count)</span></h2>
+
+                @if (Model.AverageRating > 0)
+                {
+                    <p><strong>@Fmt.N(Model.AverageRating, 1) / 5</strong></p>
+                }
+
+                @if (SignInManager.IsSignedIn(User))
+                {
+                    <form asp-action="Review" asp-route-id="@Model.Station.Id" method="post" class="form-grid" style="margin-bottom:1rem">
+                        @Html.AntiForgeryToken()
+                        <div>
+                            <label>@T["station.rating"]</label>
+                            <select name="rating">
+                                @for (var i = 5; i >= 1; i--)
+                                {
+                                    <option value="@i">@i ★</option>
+                                }
+                            </select>
+                        </div>
+                        <div style="grid-column:span 2">
+                            <label>@T["station.comment"]</label>
+                            <input type="text" name="comment" maxlength="800" />
+                        </div>
+                        <div style="align-self:end"><button class="btn btn-primary" type="submit">@T["common.save"]</button></div>
+                    </form>
+                }
+
+                @if (Model.Reviews.Count == 0)
+                {
+                    <p class="muted small">@T["station.noreviews"]</p>
+                }
+                @foreach (var review in Model.Reviews)
+                {
+                    <div class="station-row">
+                        <div class="station-main">
+                            <strong>@(review.User?.FullName ?? T["common.user"]) · @review.Rating ★</strong>
+                            <span>@review.Comment</span>
+                        </div>
+                        <span class="small muted">@Fmt.LocalTime(review.CreatedAtUtc, "dd.MM.yyyy")</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h3>@T["station.location"]</h3>
+                <div id="map-station" class="map-box map-sm"></div>
+                <p class="small muted" style="margin-top:.5rem">
+                    @Fmt.N(Model.Station.Latitude, 5), @Fmt.N(Model.Station.Longitude, 5)
+                    @if (!string.IsNullOrEmpty(Model.Station.OsmId))
+                    {
+                        <span>· OSM @Model.Station.OsmId</span>
+                    }
+                </p>
+            </div>
+
+            <div class="card">
+                <h3>@T["station.info"]</h3>
+                <ul class="small soft" style="list-style:none;padding:0;margin:0">
+                    <li>@T["station.city"]: <strong>@Model.Station.City</strong></li>
+                    @if (!string.IsNullOrEmpty(Model.Station.Phone))
+                    {
+                        <li>@T["station.phone"]: <strong>@Model.Station.Phone</strong></li>
+                    }
+                    <li>@T["station.hours"]: <strong>@(Model.Station.IsOpen24h ? "24/7" : Model.Station.OpeningHours ?? "-")</strong></li>
+                </ul>
+                <div class="chips" style="margin-top:.6rem">
+                    @if (Model.Station.HasLpg) { <span class="chip">LPG</span> }
+                    @if (Model.Station.HasCng) { <span class="chip">CNG</span> }
+                    @if (Model.Station.HasShop) { <span class="chip">@T["station.shop"]</span> }
+                    @if (Model.Station.HasCarWash) { <span class="chip">@T["station.carwash"]</span> }
+                    @if (Model.Station.HasRestaurant) { <span class="chip">@T["station.restaurant"]</span> }
+                    @if (Model.Station.HasToilets) { <span class="chip">WC</span> }
+                    @if (Model.Station.HasEvCharger) { <span class="chip">EV</span> }
+                    @if (Model.Station.IsOnMotorway) { <span class="chip">@T["station.motorway"]</span> }
+                </div>
+            </div>
+
+            @if (Model.PotentialSavingPerTank > 0)
+            {
+                <div class="card reco-card">
+                    <h3>@T["station.savings.title"]</h3>
+                    <p class="small soft">
+                        @T["station.savings.body"] <strong>@Model.CheapestNearbyName</strong>
+                        (@Fmt.N(Model.CheapestNearbyPrice, 2)).
+                    </p>
+                    <div class="kpi"><strong>@Fmt.Money(Model.PotentialSavingPerTank, 0)</strong><span>@T["station.savings.pertank"]</span></div>
+                </div>
+            }
+
+            <div class="card">
+                <h3>@T["station.nearby"]</h3>
+                @foreach (var near in Model.Nearby.Take(6))
+                {
+                    <div class="station-row">
+                        <span class="station-dot" style="background:@near.BrandColor"></span>
+                        <div class="station-main">
+                            <strong><a asp-action="Details" asp-route-id="@near.Id">@near.Name</a></strong>
+                            <span>@Fmt.Km(near.DistanceKm)</span>
+                        </div>
+                        <div class="station-price">@(near.Price.HasValue ? Fmt.N(near.Price.Value, 2) : "-")</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var history = @Html.Raw(Json.Serialize(Model.History.Select(h => new { date = h.Date.ToString("dd.MM.yy"), price = h.Price })));
+
+            ReFuel.lineChart("chart-station", [{
+                label: @Json.Serialize(current is null ? "" : current.Fuel),
+                color: @Json.Serialize(current is null ? "#0F766E" : current.Color),
+                points: history,
+                fill: true
+            }]);
+
+            var map = L.map("map-station").setView([@Json.Serialize(Model.Station.Latitude), @Json.Serialize(Model.Station.Longitude)], 15);
+            ReFuel.tileLayer().addTo(map);
+            L.marker([@Json.Serialize(Model.Station.Latitude), @Json.Serialize(Model.Station.Longitude)])
+                .addTo(map)
+                .bindPopup(@Json.Serialize(Model.Station.Name));
+        })();
+    </script>
+}

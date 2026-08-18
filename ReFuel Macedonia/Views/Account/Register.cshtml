@@ -1,0 +1,102 @@
+@model RegisterVm
+@{
+    ViewData["Title"] = T["account.register"];
+}
+
+<div class="container">
+    <div class="auth-wrap">
+    <div class="auth-brand">
+        <partial name="_BrandLockup" model="@("")" />
+    </div>
+        <div class="card">
+            <h1>@T["account.register"]</h1>
+            <p class="muted small">@T["account.register.subtitle"]</p>
+
+            <form asp-action="Register" method="post" class="stack">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+                <div>
+                    <label asp-for="CustomerType">@T["account.customertype"]</label>
+                    <select asp-for="CustomerType" id="customerType">
+                        @foreach (var type in Enum.GetValues<CustomerType>())
+                        {
+                            <option value="@type">@T["customertype." + type.ToString().ToLowerInvariant()]</option>
+                        }
+                    </select>
+                    <span class="small muted">@T["account.customertype.hint"]</span>
+                </div>
+
+                <div id="company-fields" style="display:none">
+                    <label asp-for="CompanyName">@T["business.company"]</label>
+                    <input asp-for="CompanyName" />
+                    <label asp-for="TaxNumber" style="margin-top:.5rem">@T["business.tax"]</label>
+                    <input asp-for="TaxNumber" placeholder="MK4030998123456" />
+                    <span class="small muted">@T["account.company.hint"]</span>
+                </div>
+
+                <div>
+                    <label asp-for="FullName">@T["account.fullname"]</label>
+                    <input asp-for="FullName" />
+                </div>
+                <div>
+                    <label asp-for="Email">@T["account.email"]</label>
+                    <input asp-for="Email" type="email" />
+                </div>
+                <div>
+                    <label asp-for="PhoneNumber">@T["order.phone"]</label>
+                    <input asp-for="PhoneNumber" />
+                </div>
+                <div>
+                    <label asp-for="City">@T["station.city"]</label>
+                    <input asp-for="City" />
+                </div>
+                <div>
+                    <label asp-for="PreferredLanguage">@T["account.language"]</label>
+                    <select asp-for="PreferredLanguage">
+                        @foreach (var code in SupportedCultures.All)
+                        {
+                            <option value="@code">@SupportedCultures.NativeName(code)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label asp-for="Password">@T["account.password"]</label>
+                    <input asp-for="Password" type="password" />
+                    <span class="small muted">@T["account.password.hint"]</span>
+                </div>
+                <div>
+                    <label asp-for="ConfirmPassword">@T["account.confirm"]</label>
+                    <input asp-for="ConfirmPassword" type="password" />
+                </div>
+
+                <label class="check"><input asp-for="AcceptTerms" type="checkbox" /> @T["account.terms"]</label>
+
+                <button class="btn btn-primary btn-block" type="submit">@T["account.register"]</button>
+            </form>
+
+            <div class="divider"></div>
+            <p class="small muted">@T["account.hasaccount"] <a asp-action="Login">@T["nav.login"]</a></p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var select = document.getElementById('customerType');
+            var fields = document.getElementById('company-fields');
+            if (!select || !fields) return;
+
+            function toggle() {
+                fields.style.display = select.value === 'Individual' ? 'none' : 'block';
+            }
+
+            select.addEventListener('change', toggle);
+            toggle();
+        })();
+    </script>
+}

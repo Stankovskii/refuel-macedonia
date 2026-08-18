@@ -1,0 +1,15 @@
+@{
+    ViewData["Title"] = T["business.noaccount.title"];
+}
+
+<div class="container">
+    <div class="card" style="max-width:660px;margin:2.5rem auto;text-align:center;padding:2.4rem">
+        <div class="feature-icon" style="margin:0 auto 1rem"><partial name="_Icons" model="@("building")" /></div>
+        <h1>@T["business.noaccount.title"]</h1>
+        <p class="soft">@T["business.noaccount.body"]</p>
+        <div class="flex" style="justify-content:center;margin-top:1rem">
+            <a class="btn btn-primary" asp-controller="Home" asp-action="Business">@T["home.b2b.cta"]</a>
+            <a class="btn btn-ghost" asp-controller="Home" asp-action="Index">@T["error.home"]</a>
+        </div>
+    </div>
+</div>

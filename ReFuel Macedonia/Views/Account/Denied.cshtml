@@ -1,0 +1,10 @@
+@{
+    ViewData["Title"] = T["account.denied"];
+}
+<div class="container">
+    <div class="card" style="max-width:520px;margin:3rem auto;text-align:center">
+        <h1>@T["account.denied"]</h1>
+        <p class="muted">@T["account.denied.body"]</p>
+        <a class="btn btn-primary" asp-controller="Home" asp-action="Index">@T["error.home"]</a>
+    </div>
+</div>

@@ -1,0 +1,136 @@
+@model Invoice
+@{
+    ViewData["Title"] = Model.InvoiceNumber;
+
+    var invoiceHash = ReFuel_Macedonia.Controllers.BusinessController.InvoiceHash(Model);
+    var verifyUrl = Url.Action("Verify", "Business", new { invoice = Model.InvoiceNumber, h = invoiceHash }, Context.Request.Scheme);
+}
+
+<div class="container">
+    <div class="no-print flex" style="justify-content:space-between;margin-bottom:1rem">
+        <a class="back-link" asp-action="Index" asp-route-accountId="@Model.BusinessAccountId" style="margin:0">
+            <partial name="_Icons" model="@("arrow-left")" /> @T["common.back"]
+        </a>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">
+            <partial name="_Icons" model="@("download")" /> @T["common.print"]
+        </button>
+    </div>
+
+    <div class="doc-sheet">
+        <div class="doc-head">
+            <div class="flex" style="gap:.55rem">
+                <partial name="_BrandMark" model="@("")" />
+                <div>
+                    <div class="doc-title">ReFuel Macedonia</div>
+                    <div class="doc-meta">
+                        ул. Партизански одреди бб, 1000 Скопје<br />
+                        @T["business.tax"]: MK4057026500123 · @T["invoice.bank"]: 300000000000000
+                    </div>
+                </div>
+            </div>
+            <div class="right">
+                <div class="doc-title">@T["invoice.title"]</div>
+                <div class="doc-meta mono">@Model.InvoiceNumber</div>
+                <span class="badge @(Model.Status == InvoiceStatus.Paid ? "badge-ok" : Model.IsOverdue ? "badge-err" : "badge-warn")">
+                    @T["invoice.status." + Model.Status.ToString().ToLowerInvariant()]
+                </span>
+            </div>
+        </div>
+
+        <div class="doc-parties">
+            <div>
+                <div class="upper">@T["invoice.billto"]</div>
+                <strong>@Model.BusinessAccount?.CompanyName</strong>
+                <div class="small soft">
+                    @Model.BusinessAccount?.Address<br />
+                    @Model.BusinessAccount?.City<br />
+                    @T["business.tax"]: <span class="mono">@Model.BusinessAccount?.TaxNumber</span>
+                </div>
+            </div>
+            <div>
+                <div class="upper">@T["invoice.period"]</div>
+                <strong>@Model.PeriodStart.ToString("dd.MM.yyyy") – @Model.PeriodEnd.ToString("dd.MM.yyyy")</strong>
+                <div class="small soft">
+                    @T["invoice.issued"]: @Model.IssuedOn.ToString("dd.MM.yyyy")<br />
+                    @T["invoice.due"]: <strong>@Model.DueOn.ToString("dd.MM.yyyy")</strong>
+                </div>
+            </div>
+            <div>
+                <div class="upper">@T["proof.contract"]</div>
+                <strong class="mono">@Model.SupplyContract?.ContractNumber</strong>
+                <div class="small soft">
+                    @Model.SupplyContract?.Title<br />
+                    @Model.SupplyContract?.FuelType?.LocalizedName(T.Culture)
+                </div>
+            </div>
+        </div>
+
+        <table class="data" style="border:1px solid var(--line)">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>@T["invoice.description"]</th>
+                <th>@T["prices.col.date"]</th>
+                <th class="num">@T["order.litres"]</th>
+                <th class="num">@T["order.unitprice"]</th>
+                <th class="num">@T["invoice.linetotal"]</th>
+            </tr>
+            </thead>
+            <tbody>
+            @for (var i = 0; i < Model.Lines.Count; i++)
+            {
+                var line = Model.Lines.ElementAt(i);
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td class="small">
+                        @line.Description
+                        @if (!string.IsNullOrEmpty(line.ProofNumber))
+                        {
+                            <div class="tiny muted mono">@T["business.proof"]: @line.ProofNumber</div>
+                        }
+                    </td>
+                    <td class="small">@line.DeliveredOn.ToString("dd.MM.yyyy")</td>
+                    <td class="num">@Fmt.Litres(line.Litres)</td>
+                    <td class="num">@Fmt.N(line.UnitPrice, 2)</td>
+                    <td class="num">@Fmt.Money(line.LineTotal, 2)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <div class="doc-total" style="margin-top:1.2rem">
+            <table>
+                <tbody>
+                <tr><td>@T["invoice.subtotal"]</td><td class="num">@Fmt.Money(Model.Subtotal, 2)</td></tr>
+                <tr><td>@T["invoice.vat"] (@Fmt.N(Model.VatRate, 0) %)</td><td class="num">@Fmt.Money(Model.VatAmount, 2)</td></tr>
+                <tr><td>@T["invoice.total"]</td><td class="num">@Fmt.Money(Model.Total, 2)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Status == InvoiceStatus.Paid && Model.PaidOn.HasValue)
+        {
+            <div class="flex" style="justify-content:flex-end;margin-top:1rem">
+                <div class="stamp"><partial name="_Icons" model="@("check")" /> @T["invoice.status.paid"] @Model.PaidOn.Value.ToString("dd.MM.yyyy")</div>
+            </div>
+        }
+
+        <div class="divider"></div>
+        <div class="flex" style="justify-content:space-between;align-items:flex-start;gap:1rem">
+            <p class="small soft" style="margin:0">@T["invoice.footer"]</p>
+            <div class="flex" style="gap:.7rem;align-items:flex-start;flex:0 0 auto">
+                <div class="qr-box" id="qr-invoice" title="@T["invoice.qr.title"]"></div>
+                <div class="tiny soft" style="max-width:190px">
+                    <strong style="color:var(--ink)">@T["invoice.qr.title"]</strong><br />
+                    @T["invoice.qr.explain"]<br />
+                    <span class="mono">@invoiceHash</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>ReFuel.qr("qr-invoice", @Json.Serialize(verifyUrl), 108);</script>
+}

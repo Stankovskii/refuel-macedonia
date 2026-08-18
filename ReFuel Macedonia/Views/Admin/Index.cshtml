@@ -1,0 +1,152 @@
+@model AdminDashboardVm
+@using ReFuel_Macedonia.Services.Ingestion
+@{
+    ViewData["Title"] = T["admin.title"];
+    var osm = ViewBag.OsmResult as OsmImportResult;
+    var scrape = ViewBag.ScrapeResult as ScrapeResult;
+}
+
+<div class="container">
+    <div class="section-head">
+        <div>
+            <h1>@T["admin.title"]</h1>
+            <p class="muted small">@T["admin.subtitle"]</p>
+        </div>
+        <partial name="_AdminTabs" />
+    </div>
+
+    <div class="grid grid-4 section">
+        <div class="card kpi"><strong>@Model.Stations</strong><span>@T["admin.kpi.stations"]</span></div>
+        <div class="card kpi"><strong>@Model.OsmStations</strong><span>@T["admin.kpi.osm"]</span></div>
+        <div class="card kpi"><strong>@Model.Users</strong><span>@T["admin.kpi.users"]</span></div>
+        <div class="card kpi"><strong>@Model.Orders</strong><span>@T["admin.kpi.orders"]</span></div>
+        <div class="card kpi"><strong>@Model.OpenOrders</strong><span>@T["admin.kpi.open"]</span></div>
+        <div class="card kpi"><strong>@Model.PendingReports</strong><span>@T["admin.kpi.reports"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Money(Model.Revenue, 0)</strong><span>@T["admin.kpi.revenue"]</span></div>
+        <div class="card kpi"><strong>@Fmt.Litres(Model.LitresDelivered)</strong><span>@T["admin.kpi.litres"]</span></div>
+    </div>
+
+    <div class="split">
+        <div class="stack">
+            <div class="card">
+                <h2>@T["admin.ingestion.title"]</h2>
+                <p class="muted small">@T["admin.ingestion.subtitle"]</p>
+
+                <div class="flex">
+                    <form asp-action="ImportOsm" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-primary btn-sm" type="submit">@T["admin.action.osm"]</button>
+                    </form>
+                    <form asp-action="ScrapePrices" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["admin.action.scrape"]</button>
+                    </form>
+                    <form asp-action="RefreshWeather" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["admin.action.weather"]</button>
+                    </form>
+                    <form asp-action="RefreshRoads" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["admin.action.roads"]</button>
+                    </form>
+                    <form asp-action="RegenerateForecasts" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-ghost btn-sm" type="submit">@T["admin.action.forecast"]</button>
+                    </form>
+                </div>
+
+                <div class="divider"></div>
+
+                <table class="data" style="font-size:.85rem">
+                    <tbody>
+                    <tr>
+                        <td>@T["admin.last.osm"]</td>
+                        <td class="num">
+                            @(Model.LastOsmImportUtc.HasValue ? Fmt.LocalTime(Model.LastOsmImportUtc.Value) : T["common.never"])
+                            @if (osm is not null)
+                            {
+                                <span class="badge @(osm.Success ? "badge-ok" : "badge-err")">@T[osm.Message]</span>
+                                <div class="small muted">+@osm.Created / ~@osm.Updated / @osm.Fetched · @osm.Endpoint</div>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.last.scrape"]</td>
+                        <td class="num">
+                            @(Model.LastPriceUpdateUtc.HasValue ? Fmt.LocalTime(Model.LastPriceUpdateUtc.Value) : T["common.never"])
+                            @if (scrape is not null)
+                            {
+                                <span class="badge @(scrape.Success ? "badge-ok" : "badge-warn")">@T[scrape.Message]</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>@T["admin.last.forecast"]</td>
+                        <td class="num">@(IngestionState.LastForecastUtc.HasValue ? Fmt.LocalTime(IngestionState.LastForecastUtc.Value) : T["common.never"])</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>@T["admin.recentorders"]</h2>
+                <div class="table-wrap" style="border:0">
+                    <table class="data">
+                        <thead><tr><th>@T["orders.col.ref"]</th><th>@T["common.user"]</th><th class="num">@T["order.litres"]</th><th class="num">@T["order.total"]</th><th>@T["common.status"]</th></tr></thead>
+                        <tbody>
+                        @foreach (var order in Model.RecentOrders)
+                        {
+                            <tr>
+                                <td class="mono small">@order.Reference</td>
+                                <td class="small">@order.User?.FullName</td>
+                                <td class="num">@Fmt.Litres(order.Litres)</td>
+                                <td class="num">@Fmt.Money(order.Total, 0)</td>
+                                <td><span class="badge @Fmt.StatusClass(order.Status)">@T[Fmt.StatusKey(order.Status)]</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="card">
+                <h3>@T["admin.board"]</h3>
+                @foreach (var row in Model.Board)
+                {
+                    <div class="station-row">
+                        <span class="station-dot" style="background:@row.Color"></span>
+                        <div class="station-main">
+                            <strong>@row.Name</strong>
+                            <span>@Fmt.LocalTime(row.EffectiveFrom, "dd.MM.yyyy")</span>
+                        </div>
+                        <div class="station-price">@Fmt.N(row.Price, 2)</div>
+                    </div>
+                }
+            </div>
+
+            <div class="card">
+                <h3>@T["admin.bystatus"]</h3>
+                <div class="chart-box chart-sm"><canvas id="chart-status"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>@T["admin.bybrand"]</h3>
+                <div class="chart-box chart-sm"><canvas id="chart-brand"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var status = @Html.Raw(Json.Serialize(Model.OrdersByStatus));
+            ReFuel.barChart("chart-status", Object.keys(status), Object.values(status), "#0F766E");
+
+            var brand = @Html.Raw(Json.Serialize(Model.StationsByBrand));
+            ReFuel.barChart("chart-brand", Object.keys(brand), Object.values(brand), "#2563EB");
+        })();
+    </script>
+}
