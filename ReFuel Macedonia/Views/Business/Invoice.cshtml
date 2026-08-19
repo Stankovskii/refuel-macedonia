@@ -1,6 +1,9 @@
 @model Invoice
+@using Microsoft.Extensions.Options
+@inject IOptions<CompanyOptions> CompanyOptions
 @{
     ViewData["Title"] = Model.InvoiceNumber;
+    var company = CompanyOptions.Value;
 
     var invoiceHash = ReFuel_Macedonia.Controllers.BusinessController.InvoiceHash(Model);
     var verifyUrl = Url.Action("Verify", "Business", new { invoice = Model.InvoiceNumber, h = invoiceHash }, Context.Request.Scheme);
@@ -21,10 +24,10 @@
             <div class="flex" style="gap:.55rem">
                 <partial name="_BrandMark" model="@("")" />
                 <div>
-                    <div class="doc-title">ReFuel Macedonia</div>
+                    <div class="doc-title">@company.LegalName</div>
                     <div class="doc-meta">
-                        ул. Партизански одреди бб, 1000 Скопје<br />
-                        @T["business.tax"]: MK4057026500123 · @T["invoice.bank"]: 300000000000000
+                        @company.Address<br />
+                        @T["business.tax"]: @company.TaxNumber · @T["company.registration"]: @company.RegistrationNumber · @T["invoice.bank"]: @company.BankAccount
                     </div>
                 </div>
             </div>

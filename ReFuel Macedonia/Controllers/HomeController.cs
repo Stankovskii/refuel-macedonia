@@ -20,9 +20,9 @@ public class HomeController : Controller
     private readonly IPromotionService _promotions;
     private readonly IRecommendationService _recommendations;
     private readonly ITrackingService _tracking;
-    private readonly IWeatherService _weather;
-    private readonly IRoadConditionService _roads;
+    private readonly IPricingService _pricing;
     private readonly UserManager<ApplicationUser> _users;
+    private readonly ILogger<HomeController> _logger;
 
     public HomeController(
         ApplicationDbContext db,
@@ -30,18 +30,18 @@ public class HomeController : Controller
         IPromotionService promotions,
         IRecommendationService recommendations,
         ITrackingService tracking,
-        IWeatherService weather,
-        IRoadConditionService roads,
-        UserManager<ApplicationUser> users)
+        IPricingService pricing,
+        UserManager<ApplicationUser> users,
+        ILogger<HomeController> logger)
     {
         _db = db;
         _prices = prices;
         _promotions = promotions;
         _recommendations = recommendations;
         _tracking = tracking;
-        _weather = weather;
-        _roads = roads;
+        _pricing = pricing;
         _users = users;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Index(double? lat, double? lng)
@@ -73,6 +73,41 @@ public class HomeController : Controller
 
         var unitPrice = quickFuelId > 0 ? await _prices.GetCurrentNationalPriceAsync(quickFuelId) ?? 0 : 0;
 
+        // Pricing model data for the landing page: tiers, bands, zones and a
+        // real quote for the quick-order widget (pump price + minimum delivery).
+        var settings = await _pricing.GetSettingsAsync();
+        var tiers = await _pricing.GetTiersAsync();
+        var bands = await _pricing.GetBandsAsync();
+        var zones = await _pricing.GetZonesAsync();
+
+        const double quickLitres = 40;
+        var quickTotal = Math.Round(unitPrice * (decimal)quickLitres, 0);
+        if (unitPrice > 0)
+        {
+            try
+            {
+                var quote = await _pricing.QuoteAsync(new PricingRequest
+                {
+                    CustomerType = CustomerType.Individual,
+                    PumpPricePerLitre = unitPrice,
+                    BaseCostPerLitre = unitPrice,
+                    Litres = quickLitres,
+                    DistanceKm = 0,
+                    OrderType = OrderType.Standard
+                });
+                quickTotal = Math.Round(quote.Total, 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Quick-order estimate failed; falling back to fuel-only total.");
+            }
+        }
+
+        var contractDrops = await _db.ContractDeliveries
+            .Where(d => d.Status == OrderStatus.Delivered)
+            .Select(d => d.DeliveredLitres)
+            .ToListAsync();
+
         var vm = new HomeVm
         {
             Board = board,
@@ -87,8 +122,8 @@ public class HomeController : Controller
             BrandCount = await _db.Brands.CountAsync(),
             LastPriceUpdateUtc = await _prices.GetLastUpdateAsync() ?? DateTime.UtcNow,
             Drivers = drivers,
-            DeliveriesCompleted = deliveredOrders.Count,
-            LitresDelivered = Math.Round(deliveredOrders.Sum(o => o.Litres), 0),
+            DeliveriesCompleted = deliveredOrders.Count + contractDrops.Count,
+            LitresDelivered = Math.Round(deliveredOrders.Sum(o => o.Litres) + contractDrops.Sum(), 0),
             AverageDeliveryMinutes = deliveredOrders.Count == 0
                 ? 45
                 : Math.Round(deliveredOrders
@@ -97,22 +132,27 @@ public class HomeController : Controller
                     .DefaultIfEmpty(45)
                     .Average(), 0),
             BusinessContracts = await _db.SupplyContracts.CountAsync(c => c.Status == ContractStatus.Active),
-            RoadAlerts = await _roads.GetAlertsAsync(),
             QuickOrder = new QuickOrderVm
             {
                 Fuels = deliverable,
                 FuelTypeId = quickFuelId,
-                Litres = 40,
+                Litres = quickLitres,
                 EstimatedUnitPrice = unitPrice,
-                EstimatedTotal = Math.Round(unitPrice * 40m + 200m, 0),
+                EstimatedTotal = quickTotal,
                 EtaMinutes = 45,
                 AvailableDrivers = drivers.Count
-            }
+            },
+            Zones = zones,
+            Segments = BuildSegments(tiers, bands, settings.ProcurementSpreadPerLitre),
+            TankerCount = await _db.DeliveryVehicles.CountAsync(),
+            DeliveryCityCount = zones.SelectMany(z => z.CityList).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+            MinDeliveryFee = zones.Count > 0 ? zones.Min(z => z.BaseDeliveryFee)
+                           : tiers.Count > 0 ? tiers.Min(t => t.MinDeliveryFee) : 0m,
+            ScheduledDiscountPercent = tiers.Count > 0 ? tiers.Max(t => t.ScheduledDeliveryDiscountPercent) : 0,
+            PriceDecisionReference = board.FirstOrDefault(b => b.IsRegulated && !string.IsNullOrWhiteSpace(b.DecisionReference))?.DecisionReference
+                                     ?? board.FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.DecisionReference))?.DecisionReference,
+            PriceEffectiveFrom = board.Count > 0 ? board.Max(b => b.EffectiveFrom) : null
         };
-
-        vm.Weather = lat.HasValue && lng.HasValue
-            ? await _weather.GetNearestAsync(lat.Value, lng.Value)
-            : await _weather.GetForCityAsync("Скопје");
 
         if (!string.IsNullOrEmpty(userId))
         {
@@ -121,12 +161,6 @@ public class HomeController : Controller
             vm.QuickOrder.City = user?.City ?? "Скопје";
             vm.QuickOrder.Address = user?.DefaultAddress;
             vm.Recommendation = await _recommendations.RecommendAsync(userId, lat, lng, null, take: 4);
-
-            if (user?.City is not null)
-            {
-                var localWeather = await _weather.GetForCityAsync(user.City);
-                if (localWeather is not null) vm.Weather = localWeather;
-            }
 
             var active = await _db.Orders
                 .Include(o => o.FuelType)
@@ -155,6 +189,60 @@ public class HomeController : Controller
     public IActionResult About() => View();
 
     public IActionResult Business() => View();
+
+    public IActionResult Terms() => View();
+
+    public IActionResult Privacy() => View();
+
+    /// <summary>
+    /// Groups the active pricing tiers into the three landing-page segments and
+    /// derives the customer-facing "below pump price" range of each group from
+    /// the procurement spread, the tier margins (with their floors) and the best
+    /// volume band — the same arithmetic the pricing service applies to a quote.
+    /// </summary>
+    private static List<HomeSegmentVm> BuildSegments(List<PricingTier> tiers, List<VolumeDiscountBand> bands, decimal spread)
+    {
+        var result = new List<HomeSegmentVm>();
+
+        void Add(string key, bool featured, params CustomerType[] types)
+        {
+            var group = tiers.Where(t => t.IsActive && types.Contains(t.CustomerType)).ToList();
+            if (group.Count == 0) return;
+
+            decimal MinDiscount(PricingTier t) => Math.Max(0m, spread - t.MarginPerLitre);
+            decimal MaxDiscount(PricingTier t)
+            {
+                var bestBand = bands.Where(b => b.IsActive && (b.PricingTierId == null || b.PricingTierId == t.Id))
+                                    .Select(b => b.DiscountPerLitre)
+                                    .DefaultIfEmpty(0m).Max();
+                var floor = Math.Max(t.MinMarginPerLitre, t.MarginPerLitre - bestBand);
+                return Math.Max(MinDiscount(t), spread - floor);
+            }
+
+            var from = group.Min(MinDiscount);
+            var to = group.Max(MaxDiscount);
+
+            result.Add(new HomeSegmentVm
+            {
+                Key = key,
+                Featured = featured,
+                DiscountFrom = Math.Round(from, 2),
+                DiscountTo = Math.Round(Math.Max(from, to), 2),
+                MinDeliveryFee = group.Min(t => t.MinDeliveryFee),
+                ScheduledDiscountPercent = group.Max(t => t.ScheduledDeliveryDiscountPercent),
+                EmergencySurcharge = group.Min(t => t.EmergencySurcharge),
+                MinLitres = group.Min(t => t.MinOrderLitres),
+                MaxLitres = group.Max(t => t.MaxOrderLitres),
+                HasVolumeBands = bands.Any(b => b.IsActive && b.DiscountPerLitre > 0 &&
+                                                (b.PricingTierId == null || group.Any(t => t.Id == b.PricingTierId)))
+            });
+        }
+
+        Add("individual", false, CustomerType.Individual);
+        Add("business", true, CustomerType.SmallBusiness, CustomerType.Construction);
+        Add("fleet", false, CustomerType.Fleet, CustomerType.Enterprise);
+        return result;
+    }
 
     [HttpPost]
     [ValidateAntiForgeryToken]

@@ -273,7 +273,7 @@
                     <div style="margin-top:.5rem">
                         <button type="submit" name="action" value="place" class="btn btn-primary btn-block">@T["order.place"]</button>
                     </div>
-                    <p class="tiny muted" style="margin:.6rem 0 0">@T["order.legal.note"]</p>
+                    <p class="tiny muted" style="margin:.6rem 0 0">@T["order.legal.note"] <a asp-controller="Home" asp-action="Terms" target="_blank" rel="noopener">@T["legal.terms"]</a> · <a asp-controller="Home" asp-action="Privacy" target="_blank" rel="noopener">@T["legal.privacy"]</a></p>
                 </div>
 
                 @if (Model.AvailablePromotions.Count > 0)

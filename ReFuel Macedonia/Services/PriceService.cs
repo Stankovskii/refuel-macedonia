@@ -92,7 +92,8 @@ public class PriceService : IPriceService
                 Price = last2[0].Price,
                 PreviousPrice = last2.Count > 1 ? last2[1].Price : last2[0].Price,
                 Change = last2.Count > 1 ? Math.Round(last2[0].Price - last2[1].Price, 3) : 0m,
-                EffectiveFrom = last2[0].EffectiveFrom
+                EffectiveFrom = last2[0].EffectiveFrom,
+                DecisionReference = last2[0].DecisionReference
             };
 
             if (withMarketStats)

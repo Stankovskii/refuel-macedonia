@@ -12,6 +12,7 @@ using ReFuel_Macedonia.Services.Ingestion;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<ReFuelOptions>(builder.Configuration.GetSection(ReFuelOptions.SectionName));
+builder.Services.Configure<CompanyOptions>(builder.Configuration.GetSection(CompanyOptions.SectionName));
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                        ?? "Data Source=refuel.db";

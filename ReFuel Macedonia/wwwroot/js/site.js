@@ -93,6 +93,14 @@
             { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
     };
 
+    /* Reads a CSS custom property from <html>, so charts follow the theme. */
+    ReFuel.cssVar = function (name, fallback) {
+        try {
+            var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+            return (v && v.trim()) || fallback;
+        } catch (e) { return fallback; }
+    };
+
     ReFuel.lineChart = function (canvasId, series, options) {
         var canvas = document.getElementById(canvasId);
         if (!canvas || typeof Chart === "undefined") return null;
@@ -147,7 +155,7 @@
                     y: {
                         beginAtZero: false,
                         ticks: { font: { size: 10 }, callback: function (v) { return v + " ден"; } },
-                        grid: { color: "#EEF2F7" }
+                        grid: { color: ReFuel.cssVar("--line-2", "#EBEFF4") }
                     }
                 }
             }
@@ -170,7 +178,7 @@
                 indexAxis: "y",
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: false, ticks: { font: { size: 10 } }, grid: { color: "#EEF2F7" } },
+                    x: { beginAtZero: false, ticks: { font: { size: 10 } }, grid: { color: ReFuel.cssVar("--line-2", "#EBEFF4") } },
                     y: { ticks: { font: { size: 10 } }, grid: { display: false } }
                 }
             }
@@ -321,6 +329,23 @@
         new QRCode(el, { text: text, width: size || 120, height: size || 120, correctLevel: QRCode.CorrectLevel.M });
     };
 
+    /* Delivery zones as translucent circles (landing page coverage map). */
+    ReFuel.drawZones = function (map, zones) {
+        if (!map || !zones || typeof L === "undefined") return;
+        zones.forEach(function (z) {
+            if (!z || !z.lat || !z.lng) return;
+            L.circle([z.lat, z.lng], {
+                radius: (z.radiusKm || 25) * 1000,
+                color: z.color || "#FF6A00",
+                weight: 1.5,
+                opacity: .7,
+                fillColor: z.color || "#FF6A00",
+                fillOpacity: .08,
+                interactive: false
+            }).addTo(map);
+        });
+    };
+
     window.ReFuel = ReFuel;
 })(window, document);
 
@@ -379,6 +404,73 @@
         if (nav) nav.classList.remove('open');
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
     });
+})();
+
+/* ---------------------------------------------------------- site chrome
+   Header shadow once the page scrolls, auto-hiding toasts for TempData
+   messages and the one-time cookie notice (essential cookies only). */
+(function () {
+    var header = document.getElementById('site-header');
+    if (header) {
+        var onScroll = function () {
+            header.classList.toggle('scrolled', (window.scrollY || window.pageYOffset || 0) > 8);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+    }
+
+    function dismiss(toast) {
+        if (!toast || toast.classList.contains('hide')) return;
+        toast.classList.add('hide');
+        window.setTimeout(function () {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 260);
+    }
+
+    Array.prototype.slice.call(document.querySelectorAll('[data-toast]')).forEach(function (toast) {
+        var close = toast.querySelector('[data-toast-close]');
+        if (close) close.addEventListener('click', function () { dismiss(toast); });
+        var timer = window.setTimeout(function () { dismiss(toast); }, 7000);
+        toast.addEventListener('mouseenter', function () { window.clearTimeout(timer); });
+    });
+
+    /* light / dark theme ------------------------------------------------ */
+    function applyChartTheme() {
+        if (typeof Chart === 'undefined') return;
+        var cs = getComputedStyle(document.documentElement);
+        Chart.defaults.color = (cs.getPropertyValue('--ink-3') || '#4F586A').trim();
+        Chart.defaults.borderColor = (cs.getPropertyValue('--line-2') || '#EBEFF4').trim();
+        if (Chart.instances) {
+            Object.keys(Chart.instances).forEach(function (k) {
+                var c = Chart.instances[k];
+                if (c && typeof c.update === 'function') c.update('none');
+            });
+        }
+    }
+    applyChartTheme();
+
+    Array.prototype.slice.call(document.querySelectorAll('[data-theme-toggle]')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var root = document.documentElement;
+            var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-theme', next);
+            document.cookie = 'rf_theme=' + next + '; Max-Age=' + (60 * 60 * 24 * 365) + '; Path=/; SameSite=Lax';
+            applyChartTheme();
+        });
+    });
+
+    var bar = document.getElementById('cookie-bar');
+    if (bar) {
+        var accepted = /(^|;\s*)rf_consent=1(;|$)/.test(document.cookie || '');
+        if (!accepted) bar.hidden = false;
+        var accept = bar.querySelector('[data-cookie-accept]');
+        if (accept) {
+            accept.addEventListener('click', function () {
+                document.cookie = 'rf_consent=1; Max-Age=' + (60 * 60 * 24 * 365) + '; Path=/; SameSite=Lax';
+                bar.hidden = true;
+            });
+        }
+    }
 })();
 
 /* ---------------------------------------------------------------- PWA

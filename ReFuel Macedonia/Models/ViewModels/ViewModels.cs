@@ -26,6 +26,8 @@ public class NationalPriceVm
     public int? CheapestStationId { get; set; }
     public string? CheapestStationCity { get; set; }
 
+    public string? DecisionReference { get; set; }
+
     public decimal PredictedNext { get; set; }
     public string PredictedTrend { get; set; } = "flat";
     public double PredictionConfidence { get; set; }
@@ -285,6 +287,40 @@ public class HomeVm
     public double AverageDeliveryMinutes { get; set; }
     public int BusinessContracts { get; set; }
     public double LitresDelivered { get; set; }
+
+    // landing page: company chrome -------------------------------------
+    public List<DeliveryZone> Zones { get; set; } = new();
+    public List<HomeSegmentVm> Segments { get; set; } = new();
+    public int TankerCount { get; set; }
+    public int DeliveryCityCount { get; set; }
+    public decimal MinDeliveryFee { get; set; }
+    public int ScheduledDiscountPercent { get; set; }
+    public string? PriceDecisionReference { get; set; }
+    public DateTime? PriceEffectiveFrom { get; set; }
+}
+
+/// <summary>
+/// One customer segment on the landing page (individuals, small business and
+/// construction, fleets and contracts). Numbers are derived from the active
+/// pricing tiers and the procurement spread, never typed into the view.
+/// </summary>
+public class HomeSegmentVm
+{
+    public string Key { get; set; } = string.Empty;
+    public bool Featured { get; set; }
+
+    /// <summary>Smallest discount below the pump price in the group (ден/л, 0 = pump price).</summary>
+    public decimal DiscountFrom { get; set; }
+
+    /// <summary>Largest discount below the pump price incl. the best volume band (ден/л).</summary>
+    public decimal DiscountTo { get; set; }
+
+    public decimal MinDeliveryFee { get; set; }
+    public int ScheduledDiscountPercent { get; set; }
+    public decimal EmergencySurcharge { get; set; }
+    public double MinLitres { get; set; }
+    public double MaxLitres { get; set; }
+    public bool HasVolumeBands { get; set; }
 }
 
 public class ForecastPointVm

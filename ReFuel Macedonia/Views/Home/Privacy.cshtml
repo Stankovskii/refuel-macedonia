@@ -1,0 +1,78 @@
+@using Microsoft.Extensions.Options
+@inject IOptions<CompanyOptions> CompanyOptions
+@{
+    ViewData["Title"] = T["legal.privacy"];
+    var c = CompanyOptions.Value;
+    var en = T.Culture == "en";
+}
+
+<div class="container">
+    <div class="legal-wrap">
+        <span class="eyebrow"><partial name="_Icons" model="@("shield")" /> @c.Name</span>
+        <h1>@T["legal.privacy"]</h1>
+        <p class="legal-meta">@T["legal.version"] · @T["legal.controller"]: @c.LegalName, @c.Address</p>
+        @if (!en && T.Culture != "mk")
+        {
+            <div class="alert alert-info"><partial name="_Icons" model="@("alert")" /><div>@T["legal.mkonly"]</div></div>
+        }
+
+        <nav class="legal-toc" aria-label="@T["legal.privacy"]">
+            <a href="#data">1</a><a href="#purpose">2</a><a href="#location">3</a><a href="#sharing">4</a><a href="#retention">5</a><a href="#rights">6</a><a href="#cookies">7</a><a href="#security">8</a>
+        </nav>
+
+        @if (en)
+        {
+            <h2 id="data">1. What we collect</h2>
+            <p>To deliver fuel we process the data you enter when registering and ordering: name, e-mail, phone number, delivery address and coordinates, the vehicle or asset being refuelled, order history, payments recorded on delivery and the signature captured on the delivery note. Business customers additionally provide company details, sites, assets and the contact persons authorised to receive deliveries.</p>
+
+            <h2 id="purpose">2. Why we process it</h2>
+            <p>Personal data is processed to perform the contract with you (taking, pricing, delivering and invoicing orders), to meet legal obligations (fiscal receipts, invoices, records on the transport of dangerous goods) and, with your consent, to show recommendations and promotions in the app. Processing is carried out in accordance with the Law on Personal Data Protection of the Republic of North Macedonia.</p>
+
+            <h2 id="location">3. Location data</h2>
+            <p>Your location is used only when you choose "use my location" or place a pin on the map, in order to calculate the delivery distance and route the tanker. The driver's live position is shared with you only while your order is being delivered.</p>
+
+            <h2 id="sharing">4. Who receives the data</h2>
+            <p>Data is available to our dispatchers and to the driver assigned to your order, and to the accounting provider for invoicing. We do not sell data and we do not use advertising networks. Public map data comes from OpenStreetMap, regulated prices from the Energy Regulatory Commission, weather from Open-Meteo and road conditions from AMSM; none of these receive your personal data.</p>
+
+            <h2 id="retention">5. How long we keep it</h2>
+            <p>Orders, delivery notes and invoices are kept for the period required by tax and accounting law. Account data is kept while your account is active and deleted or anonymised after you close it, unless a longer period is required by law.</p>
+
+            <h2 id="rights">6. Your rights</h2>
+            <p>You may request access to, correction or deletion of your data, restriction of processing, data portability, and you may withdraw consent at any time through your profile or by writing to <a href="mailto:@c.Email">@c.Email</a>. You may also lodge a complaint with the Personal Data Protection Agency.</p>
+
+            <h2 id="cookies">7. Cookies</h2>
+            <p>The app uses only cookies that are necessary for it to work: a session cookie for sign-in, a cookie with your chosen language, a cookie with your light/dark preference, an anti-forgery token that protects forms and a cookie that records that you have seen this notice. No analytics or advertising cookies are set.</p>
+
+            <h2 id="security">8. Security</h2>
+            <p>Data is transmitted over encrypted connections and stored on access-controlled systems. Passwords are stored as salted hashes. Delivery notes and invoices carry a SHA-256 fingerprint so that any later change can be detected through the "Verify document" page.</p>
+        }
+        else
+        {
+            <h2 id="data">1. Кои податоци ги собираме</h2>
+            <p>За да ви доставиме гориво ги обработуваме податоците што ги внесувате при регистрација и нарачка: име, е-пошта, телефонски број, адреса и координати за достава, возилото или средството што се полни, историја на нарачки, плаќања евидентирани при достава и потписот од потврдата за испорака. Деловните корисници дополнително даваат податоци за фирмата, локациите, средствата и контакт-лицата овластени да примаат достави.</p>
+
+            <h2 id="purpose">2. Зошто ги обработуваме</h2>
+            <p>Личните податоци се обработуваат за извршување на договорот со вас (прием, пресметка, достава и фактурирање на нарачки), за исполнување на законски обврски (фискални сметки, фактури, евиденција за превоз на опасни материи) и, со ваша согласност, за прикажување препораки и промоции во апликацијата. Обработката се врши согласно Законот за заштита на личните податоци на Република Северна Македонија.</p>
+
+            <h2 id="location">3. Податоци за локација</h2>
+            <p>Вашата локација се користи само кога ќе изберете „Користи ја мојата локација“ или ќе поставите ознака на мапата, за да се пресмета растојанието за достава и да се насочи цистерната. Позицијата на возачот во живо ви се споделува само додека трае доставата на вашата нарачка.</p>
+
+            <h2 id="sharing">4. Кој има пристап до податоците</h2>
+            <p>Податоците им се достапни на нашите диспечери и на возачот доделен на вашата нарачка, како и на сметководствениот сервис за фактурирање. Не продаваме податоци и не користиме рекламни мрежи. Јавните податоци за мапата доаѓаат од OpenStreetMap, регулираните цени од Регулаторната комисија за енергетика, временската прогноза од Open-Meteo, а состојбата на патиштата од АМСМ; ниту еден од нив не добива ваши лични податоци.</p>
+
+            <h2 id="retention">5. Колку долго ги чуваме</h2>
+            <p>Нарачките, потврдите за испорака и фактурите се чуваат во рокот предвиден со даночните и сметководствените прописи. Податоците од корисничката сметка се чуваат додека сметката е активна и се бришат или анонимизираат по нејзиното затворање, освен ако со закон е предвиден подолг рок.</p>
+
+            <h2 id="rights">6. Вашите права</h2>
+            <p>Имате право на пристап, исправка или бришење на податоците, ограничување на обработката, преносливост на податоците, како и право во секое време да ја повлечете согласноста преку вашиот профил или со порака на <a href="mailto:@c.Email">@c.Email</a>. Може да поднесете и претставка до Агенцијата за заштита на личните податоци.</p>
+
+            <h2 id="cookies">7. Колачиња</h2>
+            <p>Апликацијата користи само колачиња неопходни за нејзино функционирање: сесиско колаче за најава, колаче со избраниот јазик, колаче со избраниот светол/темен изглед, анти-фалсификат токен што ги штити формуларите и колаче што бележи дека сте го виделе ова известување. Не се поставуваат аналитички или рекламни колачиња.</p>
+
+            <h2 id="security">8. Безбедност</h2>
+            <p>Податоците се пренесуваат преку шифрирани врски и се чуваат на системи со контролиран пристап. Лозинките се чуваат како солени хашеви. Потврдите за испорака и фактурите носат SHA-256 отпечаток, така што секоја подоцнежна промена може да се открие преку страницата „Проверка на документ“.</p>
+        }
+
+        <p class="small muted" style="margin-top:1.6rem">@T["legal.contact"]: <a href="mailto:@c.Email">@c.Email</a> · <a href="@c.PhoneHref">@c.Phone</a></p>
+    </div>
+</div>

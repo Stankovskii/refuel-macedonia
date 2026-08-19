@@ -1,9 +1,17 @@
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Hosting
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@inject IOptions<CompanyOptions> CompanyOptions
+@inject IWebHostEnvironment Env
 @{
     var culture = T.Culture;
-    var user = SignInManager.IsSignedIn(User) ? await UserManager.GetUserAsync(User) : null;
+    var company = CompanyOptions.Value;
+    var theme = Context.Request.Cookies["rf_theme"] == "dark" ? "dark" : "light";
+    var signedIn = SignInManager.IsSignedIn(User);
+    var user = signedIn ? await UserManager.GetUserAsync(User) : null;
     var isAdmin = User.IsInRole("Administrator");
     var isDriver = User.IsInRole("Driver");
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
@@ -28,11 +36,12 @@
                                       .Take(2).Select(p => p[0])).ToUpperInvariant();
 }
 <!DOCTYPE html>
-<html lang="@culture">
+<html lang="@culture" data-theme="@theme">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0B0D12" />
+    <meta name="color-scheme" content="@(theme == "dark" ? "dark light" : "light dark")" />
     <title>@(ViewData["Title"] ?? T["app.name"]) · ReFuel</title>
     <meta name="description" content="@T["app.tagline"]" />
 
@@ -56,7 +65,50 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-<header class="site-header">
+<div class="topbar">
+    <div class="container topbar-inner">
+        <div class="topbar-left">
+            <a href="@company.PhoneHref"><partial name="_Icons" model="@("phone")" /> @company.Phone</a>
+            <span class="sep"></span>
+            <a href="mailto:@company.Email"><partial name="_Icons" model="@("mail")" /> @company.Email</a>
+            <span class="sep"></span>
+            <span class="open-now"><span class="dot"></span>@T.Format("topbar.open", company.SupportHours)</span>
+        </div>
+        <div class="topbar-right">
+            <a class="hide-sm" asp-controller="Business" asp-action="Verify" title="@T["verify.subtitle"]">
+                <partial name="_Icons" model="@("qr")" /> @T["verify.title"]
+            </a>
+            <span class="sep hide-sm"></span>
+
+            <button type="button" class="theme-toggle" data-theme-toggle title="@T["theme.toggle"]" aria-label="@T["theme.toggle"]">
+                <span class="when-light"><partial name="_Icons" model="@("moon")" /></span>
+                <span class="when-dark"><partial name="_Icons" model="@("sun")" /></span>
+            </button>
+
+            <form asp-controller="Home" asp-action="SetLanguage" method="post" class="lang-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@currentUrl" />
+                @foreach (var code in SupportedCultures.All)
+                {
+                    <button type="submit" name="culture" value="@code"
+                            class="lang-btn @(code == culture ? "active" : "")"
+                            title="@SupportedCultures.NativeName(code)">@SupportedCultures.ShortName(code)</button>
+                }
+            </form>
+
+            @if (!signedIn)
+            {
+                <span class="sep"></span>
+                <a asp-controller="Account" asp-action="Login">@T["nav.login"]</a>
+                <a class="hide-sm" asp-controller="Account" asp-action="Register">
+                    <partial name="_Icons" model="@("user")" /> @T["nav.register"]
+                </a>
+            }
+        </div>
+    </div>
+</div>
+
+<header class="site-header" id="site-header">
     <div class="container header-inner">
         <a class="brand" asp-controller="Home" asp-action="Index" title="ReFuel — Fuel. Where you are.">
             <partial name="_BrandMark" model="@("")" />
@@ -143,6 +195,10 @@
                         <partial name="_Icons" model="@("wallet")" />
                         <span><strong>@T["business.tab.savings"]</strong><em>@T["nav.savings.hint"]</em></span>
                     </a>
+                    <a class="@On("Business", "Verify")" asp-controller="Business" asp-action="Verify">
+                        <partial name="_Icons" model="@("qr")" />
+                        <span><strong>@T["verify.title"]</strong><em>@T["nav.verify.hint"]</em></span>
+                    </a>
                 </div>
             </div>
 
@@ -161,18 +217,7 @@
                 <partial name="_Icons" model="@("download")" /> <span class="install-label">@T["app.install"]</span>
             </button>
 
-            <form asp-controller="Home" asp-action="SetLanguage" method="post" class="lang-form">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="returnUrl" value="@currentUrl" />
-                @foreach (var code in SupportedCultures.All)
-                {
-                    <button type="submit" name="culture" value="@code"
-                            class="lang-btn @(code == culture ? "active" : "")"
-                            title="@SupportedCultures.NativeName(code)">@SupportedCultures.ShortName(code)</button>
-                }
-            </form>
-
-            @if (SignInManager.IsSignedIn(User))
+            @if (signedIn)
             {
                 <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">
                     <partial name="_Icons" model="@("fuel")" /> @T["nav.order"]
@@ -191,8 +236,7 @@
             }
             else
             {
-                <a class="btn btn-quiet btn-sm" asp-controller="Account" asp-action="Login">@T["nav.login"]</a>
-                <a class="btn btn-steel btn-sm" asp-controller="Account" asp-action="Register">
+                <a class="btn btn-steel btn-sm hide-sm" asp-controller="Account" asp-action="Register">
                     <partial name="_Icons" model="@("user")" /> @T["nav.register"]
                 </a>
                 <a class="btn btn-primary btn-sm" asp-controller="Orders" asp-action="Create">
@@ -205,8 +249,8 @@
 
 @if (TempData["Message"] is string message && !string.IsNullOrEmpty(message))
 {
-    <div class="container">
-        <div class="alert alert-info">
+    <div class="toast-stack" id="toast-stack">
+        <div class="toast" role="status" data-toast>
             <partial name="_Icons" model="@("check")" />
             <div>
                 @T[message]
@@ -215,6 +259,7 @@
                     <span class="muted">— @detail</span>
                 }
             </div>
+            <button type="button" class="close" aria-label="@T["common.close"]" data-toast-close>×</button>
         </div>
     </div>
 }
@@ -243,8 +288,13 @@
             <div class="footer-brand">
                 <partial name="_BrandLockup" model="@("")" />
             </div>
-            <p class="footer-tagline">ReFuel — Your intelligent fuel companion.</p>
-            <p class="footer-copy">Fuel Delivery, fuel prices, stations, routes and smarter decisions — all in one place.</p>
+            <p class="footer-tagline">@company.LegalName</p>
+            <p class="footer-copy">@T["footer.copy"]</p>
+            <ul class="footer-contact">
+                <li><partial name="_Icons" model="@("pin")" /> @company.Address</li>
+                <li><partial name="_Icons" model="@("phone")" /> <a href="@company.PhoneHref">@company.Phone</a> · @company.SupportHours</li>
+                <li><partial name="_Icons" model="@("mail")" /> <a href="mailto:@company.Email">@company.Email</a></li>
+            </ul>
         </div>
         <div>
             <h4>@T["footer.product"]</h4>
@@ -254,6 +304,7 @@
                 <li><a asp-controller="Stations" asp-action="Map">@T["nav.map"]</a></li>
                 <li><a asp-controller="Conditions" asp-action="Index">@T["nav.conditions"]</a></li>
                 <li><a asp-controller="Analytics" asp-action="Index">@T["nav.ai"]</a></li>
+                <li><a asp-controller="Promotions" asp-action="Index">@T["nav.promotions"]</a></li>
             </ul>
         </div>
         <div>
@@ -261,8 +312,23 @@
             <ul>
                 <li><a asp-controller="Home" asp-action="Business">@T["footer.contracts"]</a></li>
                 <li><a asp-controller="Business" asp-action="Index">@T["nav.business"]</a></li>
+                <li><a asp-controller="Business" asp-action="Fleet">@T["business.tab.fleet"]</a></li>
+                <li><a asp-controller="Business" asp-action="Savings">@T["business.tab.savings"]</a></li>
+                <li><a asp-controller="Account" asp-action="Register">@T["b2b.cta.contact"]</a></li>
+                @if (Env.IsDevelopment())
+                {
+                    <li><a href="/openapi/v1.json">API (OpenAPI)</a></li>
+                }
+            </ul>
+        </div>
+        <div>
+            <h4>@T["footer.company"]</h4>
+            <ul>
                 <li><a asp-controller="Home" asp-action="About">@T["nav.about"]</a></li>
-                <li><a href="/openapi/v1.json">API</a></li>
+                <li><a asp-controller="Home" asp-action="Terms">@T["legal.terms"]</a></li>
+                <li><a asp-controller="Home" asp-action="Privacy">@T["legal.privacy"]</a></li>
+                <li><a asp-controller="Home" asp-action="Privacy" asp-fragment="cookies">@T["legal.cookies"]</a></li>
+                <li><a asp-controller="Business" asp-action="Verify">@T["verify.title"]</a></li>
             </ul>
         </div>
         <div>
@@ -271,15 +337,26 @@
                 <li>@T["footer.source.erc"]</li>
                 <li>@T["footer.source.osm"]</li>
                 <li>@T["footer.source.amsm"]</li>
+                <li>@T["footer.source.meteo"]</li>
                 <li>@T["footer.source.users"]</li>
             </ul>
         </div>
     </div>
     <div class="container footer-bottom">
-        <span>© @DateTime.Now.Year ReFuel Macedonia</span>
+        <span>© @DateTime.Now.Year @company.LegalName · @T["company.registration"] @company.RegistrationNumber · @T["business.tax"] @company.TaxNumber</span>
+        <span class="legal-links">
+            <a asp-controller="Home" asp-action="Terms">@T["legal.terms"]</a>
+            <a asp-controller="Home" asp-action="Privacy">@T["legal.privacy"]</a>
+        </span>
         <span>@T["footer.madein"]</span>
     </div>
 </footer>
+
+<div class="cookie-bar" id="cookie-bar" hidden>
+    <partial name="_Icons" model="@("cookie")" />
+    <p>@T["cookie.text"] <a asp-controller="Home" asp-action="Privacy" asp-fragment="cookies">@T["legal.privacy"]</a></p>
+    <button type="button" class="btn btn-primary btn-sm" data-cookie-accept>@T["cookie.accept"]</button>
+</div>
 
 <script src="https://unpkg.com/leaflet@@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

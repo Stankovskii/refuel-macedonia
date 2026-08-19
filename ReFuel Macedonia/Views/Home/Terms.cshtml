@@ -1,0 +1,78 @@
+@using Microsoft.Extensions.Options
+@inject IOptions<CompanyOptions> CompanyOptions
+@{
+    ViewData["Title"] = T["legal.terms"];
+    var c = CompanyOptions.Value;
+    var en = T.Culture == "en";
+}
+
+<div class="container">
+    <div class="legal-wrap">
+        <span class="eyebrow"><partial name="_Icons" model="@("invoice")" /> @c.Name</span>
+        <h1>@T["legal.terms"]</h1>
+        <p class="legal-meta">@T["legal.version"] · @T["legal.company"]: @c.LegalName, @c.Address · @T["business.tax"] @c.TaxNumber</p>
+        @if (!en && T.Culture != "mk")
+        {
+            <div class="alert alert-info"><partial name="_Icons" model="@("alert")" /><div>@T["legal.mkonly"]</div></div>
+        }
+
+        <nav class="legal-toc" aria-label="@T["legal.terms"]">
+            <a href="#scope">1</a><a href="#prices">2</a><a href="#orders">3</a><a href="#delivery">4</a><a href="#payment">5</a><a href="#business">6</a><a href="#liability">7</a><a href="#final">8</a>
+        </nav>
+
+        @if (en)
+        {
+            <h2 id="scope">1. Scope</h2>
+            <p>These General Terms govern the ordering and delivery of motor fuels (Eurodiesel, Eurosuper 95/98, extra-light heating oil) through the @c.Name web application and mobile app. By placing an order you confirm that you have read and accept these Terms. Orders may be placed by adults and by legal entities through an authorised person.</p>
+
+            <h2 id="prices">2. Fuel price</h2>
+            <p>Fuel is charged at the maximum retail price set by the Energy and Water Services Regulatory Commission of the Republic of North Macedonia (ERC) valid on the day of delivery, including excise duty and VAT. The retail price is shown on every order and is never higher than the price at a filling station. Business customers and customers with volume may receive a discount below the retail price, as stated in their offer or supply contract. The delivery fee is a separate service, shown before the order is confirmed, and includes VAT.</p>
+
+            <h2 id="orders">3. Orders</h2>
+            <p>An order is placed through the app by selecting fuel, quantity, delivery type (same-day, scheduled or express) and a delivery location. Quantities for private customers are limited to the range shown in the app. Every order contains the price per litre, the delivery fee, applicable surcharges or discounts and the total amount. An order can be cancelled free of charge until a tanker is assigned; once the vehicle is on its way, the delivery fee may be charged.</p>
+
+            <h2 id="delivery">4. Delivery</h2>
+            <p>Deliveries are performed by ADR-certified drivers with road tankers equipped for the transport of dangerous goods. The customer ensures safe and lawful access to the delivery location and the vehicle or tank being filled; refuelling on public roads is carried out only where it can be done safely. The delivered quantity is measured by a verified meter on the tanker and recorded in the digital delivery note, which the customer (or an authorised person) signs on the driver's device. The delivery note can be verified at any time through the "Verify document" page using its number and security hash.</p>
+
+            <h2 id="payment">5. Payment</h2>
+            <p>Private customers pay on delivery in cash, by card or with loyalty points, and receive a fiscal receipt. Business customers with a supply contract receive a monthly invoice with VAT, payable within the agreed term. Promotions apply only to the delivery service and are shown on the order before confirmation.</p>
+
+            <h2 id="business">6. Business customers and supply contracts</h2>
+            <p>Supply contracts define the price formula (retail price minus an agreed discount per litre), delivery schedule, sites and assets, invoicing and payment terms. The business portal provides contracts, delivery notes, invoices and consumption data to the authorised users of the customer.</p>
+
+            <h2 id="liability">7. Liability</h2>
+            <p>@c.Name is liable for the quality and quantity of the delivered fuel as recorded in the delivery note. We are not liable for delays caused by road conditions, weather or force majeure, nor for damage resulting from incorrect information provided by the customer (wrong fuel type, wrong location, unsuitable tank). Complaints are submitted through the app or by e-mail within 8 days of delivery.</p>
+
+            <h2 id="final">8. Final provisions</h2>
+            <p>These Terms are governed by the law of the Republic of North Macedonia; consumer rights under the Law on Consumer Protection remain unaffected. Disputes are resolved amicably and otherwise before the competent court in @c.City. We may update these Terms; the version valid at the time of ordering applies to each order.</p>
+        }
+        else
+        {
+            <h2 id="scope">1. Предмет</h2>
+            <p>Со овие Општи услови се уредува нарачувањето и доставата на моторни горива (Еуродизел, Еуросупер 95/98, екстра лесно масло за домаќинство) преку веб-апликацијата и мобилната апликација на @c.Name. Со поставување нарачка потврдувате дека сте ги прочитале и ги прифаќате овие услови. Нарачки можат да поставуваат полнолетни лица и правни лица преку овластено лице.</p>
+
+            <h2 id="prices">2. Цена на горивото</h2>
+            <p>Горивото се наплаќа по максималната малопродажна цена утврдена со одлука на Регулаторната комисија за енергетика и водни услуги на Република Северна Македонија (РКЕ), која важи на денот на испораката, со вклучени акциза и ДДВ. Малопродажната цена е прикажана на секоја нарачка и никогаш не е повисока од цената на бензинска станица. Деловните корисници и корисниците со поголема потрошувачка можат да добијат попуст под малопродажната цена, како што е наведено во нивната понуда или договор за снабдување. Доставата е одделна услуга, прикажана пред потврдување на нарачката, со вклучен ДДВ.</p>
+
+            <h2 id="orders">3. Нарачки</h2>
+            <p>Нарачката се поставува преку апликацијата со избор на гориво, количина, вид на достава (денес, закажано или експрес) и локација за достава. Количините за физички лица се ограничени на опсегот прикажан во апликацијата. Секоја нарачка ја содржи цената по литар, надоместокот за достава, евентуалните доплати или попусти и вкупниот износ. Нарачката може да се откаже без трошок додека не е доделена цистерна; откако возилото ќе тргне, може да се наплати надоместокот за достава.</p>
+
+            <h2 id="delivery">4. Достава</h2>
+            <p>Доставите ги вршат возачи со ADR сертификат, со цистерни опремени за превоз на опасни материи. Корисникот обезбедува безбеден и законски пристап до локацијата и до возилото или резервоарот што се полни; точењето на јавен пат се врши само кога тоа е безбедно. Испорачаната количина се мери со верификувано мерило на цистерната и се запишува во дигиталната потврда за испорака, која корисникот (или овластено лице) ја потпишува на уредот на возачот. Потврдата може во секое време да се провери на страницата „Проверка на документ“ со нејзиниот број и безбедносен отпечаток.</p>
+
+            <h2 id="payment">5. Плаќање</h2>
+            <p>Физичките лица плаќаат при достава во готово, со картичка или со поени за лојалност и добиваат фискална сметка. Деловните корисници со договор за снабдување добиваат месечна фактура со ДДВ, платива во договорениот рок. Промоциите се однесуваат само на услугата достава и се прикажани на нарачката пред потврдување.</p>
+
+            <h2 id="business">6. Деловни корисници и договори за снабдување</h2>
+            <p>Договорите за снабдување ја утврдуваат формулата за цена (малопродажна цена минус договорен попуст по литар), распоредот на достави, локациите и средствата, фактурирањето и условите за плаќање. Бизнис порталот им ги става на располагање договорите, потврдите за испорака, фактурите и податоците за потрошувачка на овластените корисници на клиентот.</p>
+
+            <h2 id="liability">7. Одговорност</h2>
+            <p>@c.Name одговара за квалитетот и количината на испорачаното гориво како што е запишано во потврдата за испорака. Не одговараме за доцнење предизвикано од состојбата на патиштата, временските услови или виша сила, ниту за штета настаната од неточни податоци дадени од корисникот (погрешен вид гориво, погрешна локација, несоодветен резервоар). Рекламации се поднесуваат преку апликацијата или по е-пошта во рок од 8 дена од испораката.</p>
+
+            <h2 id="final">8. Завршни одредби</h2>
+            <p>За овие услови се применува правото на Република Северна Македонија; правата на потрошувачите според Законот за заштита на потрошувачите остануваат незасегнати. Споровите се решаваат спогодбено, а во спротивно пред надлежниот суд во @c.City. Условите можеме да ги менуваме; за секоја нарачка важи верзијата што била во сила во моментот на нарачувањето.</p>
+        }
+
+        <p class="small muted" style="margin-top:1.6rem">@T["legal.contact"]: <a href="mailto:@c.Email">@c.Email</a> · <a href="@c.PhoneHref">@c.Phone</a></p>
+    </div>
+</div>

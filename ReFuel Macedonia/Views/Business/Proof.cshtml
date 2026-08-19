@@ -1,5 +1,8 @@
 @model DeliveryProof
+@using Microsoft.Extensions.Options
+@inject IOptions<CompanyOptions> CompanyOptions
 @{
+    var company = CompanyOptions.Value;
     var delivery = Model.ContractDelivery;
     var contract = delivery?.SupplyContract;
     ViewData["Title"] = Model.ProofNumber;
@@ -23,8 +26,8 @@
                 <div class="flex" style="gap:.55rem">
                     <partial name="_BrandMark" model="@("")" />
                     <div>
-                        <div class="doc-title">ReFuel Macedonia</div>
-                        <div class="doc-meta">@T["proof.company"]</div>
+                        <div class="doc-title">@company.LegalName</div>
+                        <div class="doc-meta">@T["proof.company"] · @company.Address</div>
                     </div>
                 </div>
             </div>

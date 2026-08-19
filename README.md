@@ -46,7 +46,8 @@ To start from scratch: stop the app, delete `refuel.db`, run again.
 | **Company savings** | Total-operating-cost calculator: fuel + lost working time + extra kilometres versus delivered fuel. |
 | **Sales proposals** | Fleet offers with estimated monthly revenue, gross fuel margin, delivery cost and gross contribution before they are sent. |
 | **Discounts** | Promotions with week-day masks, per-user cool-downs and caps — deliberately not available every day. |
-| **Languages** | Macedonian, English, Albanian — 1 103 keys each. |
+| **Company site** | Landing page built from live data: ERC price ticker, customer segments priced from the pricing tiers, delivery-zone coverage map, live statistics, FAQ. Utility bar with contact details, document verification and language switch; five-column footer with legal pages (Terms of Service, Privacy Policy) rendered in MK/EN. Light and dark theme (`rf_theme` cookie, no flash on load), cookie notice, toast messages. Company identity (name, address, phone, registration and tax numbers) comes from the `Company` section of `appsettings.json`. |
+| **Languages** | Macedonian, English, Albanian — 1 326 keys each. |
 
 ---
 
@@ -150,41 +151,3 @@ code change — switch it off with `ReFuel:EnableTelemetrySimulator`.
 * The internal figure is **gross contribution** — gross fuel margin plus fees minus delivery cost.
   It is not net profit: salaries, fleet depreciation and administration are not deducted.
 * Station geometry originates from OpenStreetMap and is available under the ODbL; attribution is rendered on every map.
-
----
-
-## Configuration & credentials
-
-Everything under the `ReFuel` section of `appsettings.json` is configuration,
-not code — feature toggles, ingestion endpoints, refresh intervals, fee
-defaults and the seed accounts.
-
-The seed account passwords and `IotApiKey` in `appsettings.json` exist so the
-project runs on a fresh clone with one F5, against a local SQLite file, with no
-setup. **They are demo values and must be overridden anywhere real.** Standard
-.NET configuration precedence applies, so any of these work without touching the
-file:
-
-```bash
-# User secrets (local development — the project already has a UserSecretsId)
-dotnet user-secrets set "ReFuel:AdminPassword" "<strong-password>"
-dotnet user-secrets set "ReFuel:IotApiKey"     "<random-key>"
-```
-
-```bash
-# Environment variables (containers, CI, hosting)
-ReFuel__AdminPassword=<strong-password>
-ReFuel__IotApiKey=<random-key>
-```
-
-The SQLite database (`refuel.db` and its `-shm` / `-wal` companions) is
-git-ignored — it is generated and seeded on first run, so it should never be
-committed.
-
-## Licence
-
-Released under the MIT Licence — see `LICENSE`.
-
-Station geometry originates from OpenStreetMap and is licensed separately under
-the [ODbL](https://opendatacommons.org/licenses/odbl/); attribution is rendered
-on every map in the application.
